@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Immediately request QK4 receive and verify TQ0; never keys"
+set -euo pipefail
+exec .venv/bin/python tools/tx_test.py --unkey

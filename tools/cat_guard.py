@@ -17,7 +17,7 @@ from station_config import config
 
 # Only status queries and the settings required for VFO A USB operation.
 QUERIES = set(
-    "ID IF FA FB MD MD$ BW BW$ DT DT$ FR FT TQ AI K2 K3 RVM RVD RVP OM PS KS RT XT RO".split()
+    "ID IF FA FB MD MD$ BW BW$ DT DT$ FR FT TQ AI K2 K3 RVM RVD RVP OM PS KS RT XT RO PC".split()
 )
 SETTINGS = re.compile(rb"(?:FA\d{8,11}|MD[123456789]|BW\d{4}|AI[0-4]|K[234][0-2])")
 
@@ -28,6 +28,7 @@ def allowed(command, transmit=False):
         or SETTINGS.fullmatch(command) is not None
         or command == b"RX"
         or (transmit and command == b"TX")
+        or (transmit and re.fullmatch(rb"PC\d{3}", command) is not None)
     )
 
 
@@ -132,7 +133,7 @@ async def main(args):
         cfg["qk4_host"],
         cfg["qk4_port"],
         transmit=args.approved_transmit,
-        max_key=cfg["max_key_seconds"],
+        max_key=args.max_key_seconds or cfg["max_key_seconds"],
     )
     stop = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -151,8 +152,19 @@ async def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--max-key-seconds", type=float, help="Optional shorter deadman interval"
+    )
+    parser.add_argument(
         "--approved-transmit",
         action="store_true",
         help="Only after explicit operator approval",
     )
-    asyncio.run(main(parser.parse_args()))
+    args = parser.parse_args()
+    if (
+        args.max_key_seconds is not None
+        and not 0 < args.max_key_seconds <= config()["max_key_seconds"]
+    ):
+        parser.error(
+            "Deadman override must be positive and no longer than the configured maximum"
+        )
+    asyncio.run(main(args))

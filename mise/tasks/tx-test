@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Show the dummy-load test plan; RF requires explicit execution flags"
+set -euo pipefail
+exec .venv/bin/python tools/tx_test.py "$@"

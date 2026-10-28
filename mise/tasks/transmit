@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Start an operator-approved foreground RF session"
+set -euo pipefail
+if [[ "${1:-}" != "--approved-transmit" ]]; then
+  echo 'Requires explicit RF approval: mise run transmit -- --approved-transmit' >&2
+  exit 1
+fi
+exec .venv/bin/python tools/station.py start --approved-transmit
