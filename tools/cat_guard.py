@@ -28,7 +28,6 @@ def allowed(command, transmit=False):
         or SETTINGS.fullmatch(command) is not None
         or command == b"RX"
         or (transmit and command == b"TX")
-        or (transmit and re.fullmatch(rb"PC\d{3}", command) is not None)
     )
 
 

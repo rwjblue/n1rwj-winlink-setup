@@ -7,6 +7,7 @@ This test replaces Pat as the sole PTT owner; never run it beside the station.
 
 import argparse
 import json
+import re
 import signal
 import socket
 import subprocess
@@ -32,6 +33,30 @@ def emergency_unkey():
                 raise RuntimeError("QK4 disconnected before unkey readback")
             response += part
     print("QK4 reports TQ0 (radio receive)", flush=True)
+
+
+def native_power(set_frame=None):
+    """QK4 uses K4 PCnnnL/H/X, which differs from Hamlib's K3-style SETs."""
+    cfg = config()
+    if set_frame is not None and not re.fullmatch(rb"PC\d{3}[HLX]", set_frame):
+        raise ValueError("Invalid native K4 power frame")
+    with socket.create_connection((cfg["qk4_host"], cfg["qk4_port"]), timeout=2) as cat:
+        cat.settimeout(2)
+        if set_frame is not None:
+            cat.sendall(set_frame + b";")
+        cat.sendall(b"PC;")
+        pending = b""
+        while True:
+            part = cat.recv(4096)
+            if not part:
+                raise RuntimeError("QK4 closed before power readback")
+            pending += part
+            if len(pending) > 4096:
+                raise RuntimeError("Oversized power reply")
+            while b";" in pending:
+                frame, pending = pending.split(b";", 1)
+                if re.fullmatch(rb"PC\d{3}[HLX]", frame):
+                    return frame
 
 
 def main():
@@ -100,6 +125,7 @@ def main():
     processes = []
     logs = []
     snapshot = None
+    saved_power = None
 
     def stop(*_):
         raise KeyboardInterrupt
@@ -145,8 +171,8 @@ def main():
                 raise RuntimeError(f"{name} failed; inspect its log")
         for attempt in range(10):
             try:
-                original = rig("f", "m", "l", "RFPOWER", "t")
-                if len(original) == 5:
+                original = rig("f", "m", "t")
+                if len(original) == 4:
                     break
             except subprocess.SubprocessError, OSError:
                 if attempt == 9:
@@ -157,12 +183,16 @@ def main():
         if original[-1] != "0":
             raise RuntimeError("Radio already transmitting; test refused")
         snapshot = original
-        (LOCAL / "tx-test-before.json").write_text(json.dumps(original))
-        rig("M", "USB", "2800", "F", "14101500", "L", "RFPOWER", ".05")
-        readback = rig("f", "m", "l", "RFPOWER", "t")
+        saved_power = native_power()
+        (LOCAL / "tx-test-before.json").write_text(
+            json.dumps({"radio": original, "power": saved_power.decode()})
+        )
+        rig("M", "USB", "2800", "F", "14101500")
+        power = native_power(b"PC050L")  # K4 QRP units are tenths of a watt.
+        readback = rig("f", "m", "t")
         if (
             readback[:3] != ["14101500", "USB", "2800"]
-            or float(readback[3]) > 0.051
+            or power != b"PC050L"
             or readback[-1] != "0"
         ):
             raise RuntimeError(f"Test settings did not read back correctly: {readback}")
@@ -193,17 +223,10 @@ def main():
         try:
             emergency_unkey()
             if snapshot:
-                rig(
-                    "M",
-                    snapshot[1],
-                    snapshot[2],
-                    "F",
-                    snapshot[0],
-                    "L",
-                    "RFPOWER",
-                    snapshot[3],
-                )
-                print("Restored radio settings:", rig("f", "m", "l", "RFPOWER", "t"))
+                rig("M", snapshot[1], snapshot[2], "F", snapshot[0])
+                if saved_power is not None and native_power(saved_power) != saved_power:
+                    raise RuntimeError("Power restoration readback failed")
+                print("Restored radio settings:", rig("f", "m", "t"))
         finally:
             for process in processes:
                 if process.poll() is None:
