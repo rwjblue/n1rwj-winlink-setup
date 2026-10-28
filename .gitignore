@@ -1,0 +1,8 @@
+.cache/
+.local/
+.venv/
+.env
+config/station.local.toml
+__pycache__/
+*.pyc
+.DS_Store

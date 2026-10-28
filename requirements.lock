@@ -1,0 +1,16 @@
+# Generated with uv pip freeze; refresh only after validation.
+cffi==2.1.1
+-e file://.cache/upstream/hfmodem/packages/creance
+-e file://.cache/upstream/hfmodem/packages/hfhost
+-e file://.cache/upstream/hfmodem/packages/hfmodem
+iniconfig==2.3.1
+numpy==2.5.4
+packaging==26.3
+pluggy==1.7.0
+pycparser==3.12
+pygments==2.21.0
+pyserial==3.5
+pytest==9.2.0
+ruff==0.17.3
+scipy==1.18.1
+sounddevice==0.5.6

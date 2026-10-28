@@ -1,0 +1,14 @@
+{
+  "hfmodem": {
+    "url": "https://github.com/sstjohn/hfmodem",
+    "commit": "a340f5cff17b653f9c18765d4acf3182bc74ac12"
+  },
+  "pat": {
+    "url": "https://github.com/la5nta/pat",
+    "commit": "2e6a8d14baf0268f4e2aa4d01784a54ca935cf52"
+  },
+  "QK4": {
+    "url": "https://github.com/mikeg-dal/QK4",
+    "commit": "72025dfeea15fb31759c8dd03a6146912a6ca648"
+  }
+}

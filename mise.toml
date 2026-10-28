@@ -1,0 +1,8 @@
+[tools]
+go = "1.26.2"
+"go:github.com/la5nta/pat" = "2e6a8d14baf0268f4e2aa4d01784a54ca935cf52"
+python = "3.14.4"
+uv = "0.11.7"
+
+[env]
+PYTHONPATH = "{{config_root}}/src"

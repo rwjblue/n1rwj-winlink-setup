@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Install pinned runtimes, Pat and project-local Kestrel"
+set -euo pipefail
+mise install
+python tools/bootstrap.py
+uv venv --allow-existing --python "$(mise which python)" .venv
+uv pip sync --python .venv/bin/python requirements.lock
+mkdir -p .local/logs .local/backups
+chmod 700 .local
