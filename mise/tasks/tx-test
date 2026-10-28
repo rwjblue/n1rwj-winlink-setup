@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-#MISE description="Show the dummy-load test plan; RF requires explicit execution flags"
+#MISE description="Plan an identified 5 W RF check; execution requires operator approval"
 set -euo pipefail
 exec .venv/bin/python tools/tx_test.py "$@"

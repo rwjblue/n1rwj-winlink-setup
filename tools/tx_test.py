@@ -20,22 +20,13 @@ from hfmodem.core import cwid
 from hfmodem.core.busy import is_busy
 from hfmodem.core.occupied import occupied_hz
 
-from qk4_cat import native_power
+from qk4_cat import native_power, wait_for_receive
 from station import LOCAL
 from station_config import ROOT, config
 
 
 def emergency_unkey():
-    cfg = config()
-    with socket.create_connection((cfg["qk4_host"], cfg["qk4_port"]), timeout=2) as cat:
-        cat.sendall(b"RX;TQ;")
-        cat.settimeout(2)
-        response = b""
-        while b"TQ0;" not in response:
-            part = cat.recv(4096)
-            if not part:
-                raise RuntimeError("QK4 disconnected before unkey readback")
-            response += part
+    wait_for_receive(request_rx=True)
     print("QK4 reports TQ0 (radio receive)", flush=True)
 
 
