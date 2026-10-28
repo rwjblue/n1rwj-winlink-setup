@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Back up and set QK4 Loopback/raw audio preferences (app closed)"
+#MISE depends=["qt-audio-probe"]
+set -euo pipefail
+exec .venv/bin/python tools/qk4_settings.py "$@"

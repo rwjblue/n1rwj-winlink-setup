@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Verify receive audio and Pat QSY, then restore radio settings"
+set -euo pipefail
+exec .venv/bin/python tools/receive_check.py

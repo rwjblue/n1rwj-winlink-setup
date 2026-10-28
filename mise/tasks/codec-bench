@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Compare raw PCM and QK4 Opus settings on synthetic VARA audio"
+set -euo pipefail
+exec .venv/bin/python tools/codec_bench.py

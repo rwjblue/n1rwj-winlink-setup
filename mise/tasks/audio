@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Inspect, record or measure the station's Loopback cables"
+set -euo pipefail
+exec .venv/bin/python tools/audio.py "$@"
