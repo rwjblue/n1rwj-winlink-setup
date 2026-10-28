@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Show station process status"
+set -euo pipefail
+exec .venv/bin/python tools/station.py status

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Stop the station and release PTT"
+set -euo pipefail
+exec .venv/bin/python tools/station.py stop

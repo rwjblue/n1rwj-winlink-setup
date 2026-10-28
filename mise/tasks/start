@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Start the receive-only station"
+set -euo pipefail
+exec .venv/bin/python tools/station.py start --background

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Verify PTT interlocks and local Python code without RF"
+set -euo pipefail
+.venv/bin/ruff check tools tests
+PYTHONPATH=tools .venv/bin/python -m unittest discover -s tests -v
