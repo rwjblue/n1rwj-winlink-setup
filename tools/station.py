@@ -13,6 +13,7 @@ import sys
 import time
 
 from station_config import ROOT, config
+from qk4_cat import require_five_watt_limit
 
 LOCAL = ROOT / ".local"
 
@@ -57,6 +58,8 @@ def pat_args():
 
 def run_stack(transmit=False):
     cfg = config()
+    if transmit:
+        print(f"RF power readback: {require_five_watt_limit():.1f} W", flush=True)
     pat_config = json.loads(configure().read_text())
     expected_vara = {"addr": "127.0.0.1:8300", "rig": "qk4", "ptt_ctrl": True}
     expected_rig = {

@@ -1,22 +1,26 @@
-"""Prepare, or explicitly execute, one short dummy-load tone test.
+"""Prepare, or explicitly execute, one short identified transmit test.
 
 Default is a pure dry run. Execution requires separate human approval in chat
-and confirmation that the dummy load and amplifier bypass are in place.
+and confirmation of the selected dummy load or operator-approved antenna.
 This test replaces Pat as the sole PTT owner; never run it beside the station.
 """
 
 import argparse
 import json
-import re
 import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 import numpy as np
 import sounddevice as sd
+from hfmodem.core import cwid
+from hfmodem.core.busy import is_busy
+from hfmodem.core.occupied import occupied_hz
 
+from qk4_cat import native_power
 from station import LOCAL
 from station_config import ROOT, config
 
@@ -35,66 +39,53 @@ def emergency_unkey():
     print("QK4 reports TQ0 (radio receive)", flush=True)
 
 
-def native_power(set_frame=None):
-    """QK4 uses K4 PCnnnL/H/X, which differs from Hamlib's K3-style SETs."""
-    cfg = config()
-    if set_frame is not None and not re.fullmatch(rb"PC\d{3}[HLX]", set_frame):
-        raise ValueError("Invalid native K4 power frame")
-    with socket.create_connection((cfg["qk4_host"], cfg["qk4_port"]), timeout=2) as cat:
-        cat.settimeout(2)
-        if set_frame is not None:
-            cat.sendall(set_frame + b";")
-        cat.sendall(b"PC;")
-        pending = b""
-        while True:
-            part = cat.recv(4096)
-            if not part:
-                raise RuntimeError("QK4 closed before power readback")
-            pending += part
-            if len(pending) > 4096:
-                raise RuntimeError("Oversized power reply")
-            while b";" in pending:
-                frame, pending = pending.split(b";", 1)
-                if re.fullmatch(rb"PC\d{3}[HLX]", frame):
-                    return frame
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--approved-transmit", action="store_true")
     parser.add_argument("--dummy-load-confirmed", action="store_true")
+    parser.add_argument("--antenna-confirmed", action="store_true")
+    parser.add_argument("--dial-khz", type=float, default=14101.5)
     parser.add_argument("--amplifier-bypassed", action="store_true")
     parser.add_argument(
         "--unkey", action="store_true", help="Emergency RX only; never keys"
     )
     args = parser.parse_args()
     cfg = config()
+    dial_hz = round(args.dial_khz * 1000)
+    if not (7000000 <= dial_hz <= 7300000 or 14000000 <= dial_hz <= 14350000):
+        parser.error("Test frequency must be on the approved 40m or 20m antenna bands")
     if args.unkey:
         emergency_unkey()
         return
     plan = {
-        "dial_hz": 14101500,
+        "dial_hz": dial_hz,
         "mode": "USB",
         "filter_hz": 2800,
         "power_limit_w": 5,
         "tone_hz": 1500,
-        "tone_seconds": 1,
+        "signal": f"CW {cfg['callsign']} at 20 WPM",
+        "signal_seconds": cwid.duration(cfg["callsign"], wpm=20),
         "audio_peak": min(cfg["amplitude"], 0.05),
         "tx_device": cfg["tx_device"],
         "maximum_key_seconds": 5,
         "restore": "frequency, mode, bandwidth and RF power after confirmed unkey",
-        "requirements": "Explicit RF approval, 50-ohm dummy load, external amplifier bypassed",
+        "requirements": "Explicit RF approval and confirmation of antenna or dummy load",
+        "load": "operator-approved antenna" if args.antenna_confirmed else "dummy load",
     }
     print(json.dumps(plan, indent=2), flush=True)
     if not args.execute:
         print("DRY RUN: no devices or CAT connections opened")
         return
-    if not all(
-        (args.approved_transmit, args.dummy_load_confirmed, args.amplifier_bypassed)
+    if not (
+        args.approved_transmit
+        and (
+            args.antenna_confirmed
+            or (args.dummy_load_confirmed and args.amplifier_bypassed)
+        )
     ):
         parser.error(
-            "Execution requires RF approval, dummy load confirmation and amplifier bypass"
+            "Execution requires RF approval and antenna confirmation, or dummy load plus amplifier bypass"
         )
     if (LOCAL / "station.json").exists():
         raise SystemExit(
@@ -126,6 +117,26 @@ def main():
     logs = []
     snapshot = None
     saved_power = None
+    telemetry = []
+    telemetry_stop = threading.Event()
+    monitor = None
+
+    def observe_radio():
+        try:
+            with socket.create_connection(
+                (cfg["qk4_host"], cfg["qk4_port"]), timeout=2
+            ) as cat:
+                cat.settimeout(0.3)
+                while not telemetry_stop.is_set():
+                    cat.sendall(b"TQ;TM;")
+                    try:
+                        reply = cat.recv(4096).decode("ascii", errors="replace")
+                        telemetry.append({"mono_s": time.monotonic(), "reply": reply})
+                    except TimeoutError:
+                        pass
+                    telemetry_stop.wait(0.1)
+        except OSError as error:
+            telemetry.append({"error": str(error)})
 
     def stop(*_):
         raise KeyboardInterrupt
@@ -187,19 +198,38 @@ def main():
         (LOCAL / "tx-test-before.json").write_text(
             json.dumps({"radio": original, "power": saved_power.decode()})
         )
-        rig("M", "USB", "2800", "F", "14101500")
+        rig("M", "USB", "2800", "F", str(dial_hz))
         power = native_power(b"PC050L")  # K4 QRP units are tenths of a watt.
         readback = rig("f", "m", "t")
         if (
-            readback[:3] != ["14101500", "USB", "2800"]
+            readback[:3] != [str(dial_hz), "USB", "2800"]
             or power != b"PC050L"
             or readback[-1] != "0"
         ):
             raise RuntimeError(f"Test settings did not read back correctly: {readback}")
-        samples = (0.05 * np.sin(2 * np.pi * 1500 * np.arange(48000) / 48000)).astype(
-            "float32"
+        if args.antenna_confirmed:
+            time.sleep(2)  # Discard old-frequency receiver/sink buffers.
+            channel = sd.rec(
+                5 * 48000,
+                samplerate=48000,
+                channels=1,
+                dtype="float32",
+                device=cfg["rx_device"],
+            )
+            sd.wait()
+            busy, _, margin = is_busy(channel[:, 0], 48000, occupied_hz("vara", "2300"))
+            print(
+                f"Channel assessment: busy={busy}, margin={margin:.1f} dB", flush=True
+            )
+            if busy:
+                raise RuntimeError("Channel occupied; antenna transmission refused")
+        samples = cwid.audio(
+            cfg["callsign"],
+            wpm=20,
+            tone_hz=1500,
+            fs=48000,
+            amplitude=plan["audio_peak"],
         )
-        samples *= plan["audio_peak"] / 0.05
         stereo = np.repeat(samples[:, None], 2, axis=1)
         # Open/prime output with silence before asserting PTT. Pat is absent;
         # this test process is the only PTT controller.
@@ -207,6 +237,8 @@ def main():
             device=cfg["tx_device"], samplerate=48000, channels=2, dtype="float32"
         ) as audio:
             audio.write(np.zeros((4800, 2), dtype="float32"))
+            monitor = threading.Thread(target=observe_radio, daemon=True)
+            monitor.start()
             rig("T", "1")
             time.sleep(cfg["ptt_lead_seconds"])
             audio.write(stereo)
@@ -216,10 +248,21 @@ def main():
         rig("T", "0")
         emergency_unkey()
         print(
-            "Tone completed; verify RF wattmeter, ALC and dummy-load heating before declaring success"
+            "Identification completed; inspect telemetry and verify RF power/ALC before declaring success"
         )
     finally:
         sd.stop()
+        telemetry_stop.set()
+        if monitor is not None:
+            monitor.join(timeout=2)
+            (LOCAL / "logs/tx-telemetry.json").write_text(
+                json.dumps(telemetry, indent=2)
+            )
+            print(
+                "Observed TQ1:",
+                any("TQ1;" in row.get("reply", "") for row in telemetry),
+                flush=True,
+            )
         try:
             emergency_unkey()
             if snapshot:
