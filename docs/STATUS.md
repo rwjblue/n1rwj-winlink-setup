@@ -1,8 +1,9 @@
 # Station evidence — 2026-10-28
 
-**Current state: receive-only station prepared and verified; awaiting human
-approval for the first dummy-load transmission. No RF was intentionally
-transmitted during setup. No end-to-end HF message transfer is claimed.**
+**Current state: RF keying and output have been verified on the approved
+antenna at a 5 W setting. The first RMS did not answer. The stack is stopped;
+QK4 exited and the Mac is locked, preventing app controls from reopening it.
+No RMS link or end-to-end HF message transfer is claimed.**
 
 Test environment: Apple Silicon arm64 macOS; mise Python 3.14.4, Go 1.26.2,
 uv 0.11.7; Pat v1.0.0 at the pinned source revision; hfmodem/hfhost/creance
@@ -23,7 +24,7 @@ QK4 was reused rather than rebuilt or replaced.
 | RX cable conversion | 12->48 kHz chirp, gain 0.999333, residual SNR 63.0 dB, estimated latency 16.02 ms, no stream errors. QK4 was disconnected for the injected cable signal. | `mise run audio -- cable --direction rx` |
 | TX cable | 48 kHz chirp, gain 1.0, residual SNR >130 dB, estimated latency 16.0 ms, no stream errors. QK4 gate explicitly closed. | `mise run audio -- cable --direction tx` |
 | Pat/Hamlib PTT bench | Actual Pat and Hamlib produced TX/RX/TX/RX on a simulated K4. Key notification to CAT ~1.33 ms; unkey ~0.70 ms. Missing OFF forced unkey at the bench's 0.5 s deadline. No audio/radio opened. | `mise run bench-ptt` |
-| Interlocks | Twelve local tests pass: receive-only key/audio refusal, CAT policy, framing, owner disconnect, deadline, supervisor loss, oversized input, RF approval entry gates and native K4 power formatting. | `mise run check` |
+| Interlocks | Twenty local tests pass, including receive-only refusal, CAT policy/deadman, native power limits, closing-ID ordering, bounded link-test cancellation and delayed unkey readback. | `mise run check` |
 | Modem regression | 37 upstream host lifecycle and BW2300 codec tests passed. Synthetic payload recovery is not independent RF evidence. | Commands below |
 | Failure shutdown | SIGKILL to the live receive-only Kestrel process caused all five station listener ports to close; normal restart reattached Pat. | Supervisor log; deliberate manual fault injection |
 
@@ -57,22 +58,67 @@ QK4 preference backups live in the user's Library outside the repository.
 
 ## Remaining gates
 
-1. **Human approval and physical preparation:** confirm a 50-ohm dummy load
-   and bypassed external amplifier before the proposed 5 W, one-second tone.
-2. Verify QK4 microphone permission, actual TX cable consumption and K4 RF
-   output; calibrate levels against ALC and the wattmeter. The TX cable alone
-   does not prove QK4's gated microphone/network transmit path.
-3. Verify physical unkey, leading/trailing waveform integrity and behavior
-   on a lost modem/PTT client while using the dummy load. Existing tests use
-   a simulated transmitter or receive-only hardware.
-4. Measure radio/network turnaround and decide whether PTT lead/tail need
-   reduction for VARA's response windows. Local cable latency is insufficient.
-5. With separate antenna/RMS approval, choose an active public VARA gateway,
-   configure the Winlink account via keychain, and test reception followed by
-   a message transfer and destination receipt.
-6. No live CRC-valid VARA frame has yet been identified in this station's
-   off-air recording. Live audio and offline codec functionality are verified
-   separately.
+1. Unlock the Mac and reopen/connect QK4. The user already approved antenna
+   RF tests on 40m/20m at 5 W; no repeat RF approval is needed for this work.
+2. Try another current RMS, with receive recording and corrected closing-ID
+   order. KB8AY on 7.100 MHz / BW2750 is a candidate with upstream
+   interoperability evidence, listed 1013 km from the configured grid.
+3. Qualify leading/trailing waveforms and physical unkey on an interrupted
+   RF client. Normal live key/unkey is observed; deliberate loss/deadman
+   tests so far use a simulated transmitter.
+4. Measure radio/network turnaround and qualify PTT lead/tail against VARA
+   response windows. Local cable latency is insufficient.
+5. After a radio link succeeds, configure Winlink credentials via keychain
+   and test message transfer plus destination receipt. The user explicitly
+   chose radio-link testing before supplying credentials.
+6. No CRC-valid VARA frame has yet been identified in this station's off-air
+   audio. Live audio and offline codec tests remain separate evidence.
 
-The dry-run `tx-test` has been inspected and run without opening devices.
-Its real-radio transmit execution and restoration paths remain unexecuted.
+## First live RF trial
+
+On 2026-10-28 the operator authorized the current antenna instead of a dummy
+load and reported turning the radio down to 5 W. Native PC050L readback
+confirmed the setting; QK4's amplifier integration was disabled.
+
+The standalone CW test's preflight classifier refused its first channel and
+never keyed. A subsequent real Pat attempt to W2KBF-1 on 7.050 MHz / BW500
+waited for Kestrel's BUSY OFF and transmitted connect requests at
+23:17–23:18 UTC. No gateway response or HF CONNECTED was observed. The call
+was cancelled through Pat.
+
+Evidence from QK4 and the live CAT stream:
+
+- QK4 opened WSJT-X TX to K4 at 48 kHz mono Float32 and decimated to 12 kHz.
+- TQ1 was observed during bursts; TQ0 between bursts and afterward.
+- Native power remained PC050L. K4's internal forward meter peaked at 5.8 W;
+  reported ALC peak was zero and SWR peak 1.0:1. This is internal telemetry,
+  not an independently calibrated external wattmeter.
+- Closing CW identification was sent. Its original callback order allowed
+  Pat's QSX frequency restoration to overlap the ID. The launcher now sends
+  ID and PTT OFF before reporting DISCONNECTED. That correction is unit
+  tested and awaits the next live trial.
+- Sampled cached TQ receive readback followed the audio completion record
+  with median 0.462 s / maximum 0.569 s over 17 bursts. This combines state
+  caching/polling and radio/audio delay; it is not calibrated RF turnaround.
+
+Evidence is in ignored .local/logs/first-rf-telemetry.jsonl, pat.log,
+kestrel.log and the archived QK4 audio log. The trial preceded automatic
+RF-session receive recording, so its RX waveform was not saved. Metering
+establishes RF output and key/unkey; no independent receiver has decoded the
+transmitted waveform.
+
+The upstream audio driver labels transmissions dry_run when it has no rig
+controller. Here Pat owns PTT, so that label is not an RF result. Independent
+QK4 meter/TQ observations establish that RF occurred. The new bounded
+link-test has been dry-run/unit tested; its on-air execution awaits QK4
+being available again. Mail authentication and transfer have not been tested.
+
+## Long-running receive fix
+
+A longer receive run exposed Pat modem reconnects. Stack dumps located the
+owner in the optional VarAC UI turbo decoder, processing unrelated audio
+while ARQ polling and IAMALIVE stalled. The Winlink launcher now leaves that
+optional decoder off on every ARQ station replacement. Three successive
+minute heartbeats were observed on one live attachment after the fix; CPU
+use dropped from roughly one saturated core to a few percent. The ARQ
+receiver remains enabled.

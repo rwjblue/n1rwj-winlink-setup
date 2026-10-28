@@ -1,7 +1,7 @@
 # N1RWJ remote HF Winlink
 
-Pat + Kestrel + QK4 on Apple Silicon macOS. **Receive-only operation is
-verified. RF transmission and RMS message transfer await approval and testing.**
+Pat + Kestrel + QK4 on Apple Silicon macOS. **Receive audio, CAT and RF
+transmission through QK4 are verified. No RMS link or message transfer yet.**
 Kestrel is experimental; upstream success does not establish this station's
 end-to-end operation. See [tested scope and remaining gates](docs/STATUS.md).
 
@@ -38,8 +38,9 @@ app were verified. CoreAudio converts RX to Kestrel's 48 kHz; QK4 converts
 
 Configure disables mono mixing and sets sub volume to zero. Main volume is
 47 here; mic gain is 25 and modem peak drive 0.05. Keep RX boost off. TX gain
-needs dummy-load calibration. Allow macOS microphone access for virtual-device
-capture; QK4's first microphone open occurs on PTT and remains unverified.
+produced RF near the 5 W setting in the first trial; waveform quality still
+needs qualification. QK4's microphone capture opened successfully on PTT.
+Allow macOS microphone access for virtual-device capture if prompted.
 System audio defaults were unchanged.
 
 ## Operate
@@ -86,7 +87,9 @@ Kestrel and the guard independently enforce receive-only. A child failure
 stops the stack, closing CAT first. The guard unkeys on session/parent loss
 and limits keys to 30 seconds; QK4 also unkeys on owning-client disconnect.
 Direct QK4 controls and other clients remain independent. Use stop/Ctrl-C for
-cleanup. Physical RF/unkey still needs verification. See [source review and
+cleanup. RF startup requires native QRP power readback at or below 5 W.
+Closing CW identification precedes the disconnect notification, so Pat's
+frequency restoration follows unkey. See [source review and
 audio findings](docs/UPSTREAM.md).
 
 ## Diagnostics and troubleshooting
@@ -95,6 +98,7 @@ audio findings](docs/UPSTREAM.md).
 mise run check
 mise run bench-ptt                    # Real Pat/Hamlib, simulated K4; no RF/audio
 mise run codec-bench                  # Offline raw/Opus comparison
+mise run link-test -- 'varahf:///KB8AY?bw=2750&freq=7100' # Dry run
 mise run qt-audio-probe
 mise run audio -- record --seconds 10 --output .local/rx.wav
 mise run receive-check                # Temporary USB QSY, record, restore
@@ -110,30 +114,43 @@ routing and volume. QK4's `NO RX AUDIO` log means Qt rejected the format.
 For startup failures, inspect `.local/logs/supervisor.log` and child logs.
 Use `doctor` for health checks: probing 8300 with netcat attaches a modem client.
 
-## RF approval gate
+## Approved RF operation
 
 `mise run tx-test` prints a dry run without opening audio or CAT devices.
-The proposed first test is **one second of 1500 Hz tone at 14.1015 MHz USB,
-5 W limit, peak audio 0.05**, into a 50-ohm dummy load with the amplifier
-bypassed. It requires native K4 `PC050L` readback and has a five-second key
-deadline. The test temporarily replaces Pat as sole PTT owner and restores
-frequency, mode, filter and native RF power after confirmed unkey.
+The standalone test sends `N1RWJ` in CW at 20 WPM (3.78 seconds), at a
+1500 Hz audio offset, with a 5 W setting and five-second key deadline.
+It restores frequency, mode, filter and native power after receive readback.
+Its conservative channel check can refuse a noisy channel before key-up.
 
-**Execute only after explicit human RF approval and physical confirmations:**
+The operator authorized the current resonant 40m/20m antenna and transmission
+at a 5 W setting on 2026-10-28, replacing the earlier dummy-load requirement
+for this session. Future use still requires operator authorization.
+For an identified standalone check:
 
 ```sh
 mise run stop
-mise run tx-test -- --execute --approved-transmit --dummy-load-confirmed --amplifier-bypassed
+mise run tx-test -- --execute --approved-transmit --antenna-confirmed
 ```
 
-Observe RF power/ALC, verify QK4 mic capture, then verify TQ0 and RF returning
-to zero. This real-radio transmit path has only been dry-run tested. Qualify
-levels, leading/trailing audio and failure unkey on the dummy load first.
+For a radio-link test, connect QK4, select USB/a suitable filter, and run:
 
-After success, obtain separate antenna/RMS approval. Start the foreground RF
-stack with `mise run transmit -- --approved-transmit`, choose a current RMS
-URL, receive first, then transfer a short test message. Verify received content
-and destination delivery before claiming success.
+```sh
+mise run transmit -- --approved-transmit  # Foreground RF stack
+# In another terminal, use a URL from the current RMS list:
+mise run link-test -- 'varahf:///KB8AY?bw=2750&freq=7100' --execute --approved-transmit
+```
+
+`link-test` ends on HF connection or its 45-second deadline, explicitly
+cancels Pat, and verifies receive readback. Monitoring/cancellation failure
+requests full RF-stack shutdown. It tests the radio link before mail login.
+RF sessions record RX under `.local/recordings`; monitor available disk space.
+The upstream audio driver's `dry_run` journal label means it does not own
+CAT; QK4 telemetry is the RF evidence when Pat owns PTT.
+
+Passive VarAC broadcast decoding stays off in this Winlink launcher to keep
+unrelated turbo decoding from stalling ARQ/heartbeats. Verify an RMS link,
+then authenticated message transfer and destination receipt before claiming
+complete Winlink operation.
 
 ## Rollback
 

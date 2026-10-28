@@ -38,12 +38,14 @@ readback, and restores the original native power frame. It does not use
 Hamlib's normalized RFPOWER setter. Power writes remain blocked in the
 ordinary CAT guard. Native SET/readback to 5.0 W and restoration to the
 original 75 W setting were verified with TQ0 throughout and no generated
-audio. Physical output remains untested.
+audio. Subsequent antenna testing verified RF output near the 5 W setting;
+see STATUS for the internal meter values and their limitations.
 
 The simulated-radio bench exercised actual Pat -> actual Hamlib -> guard ->
 simulated QK4 commands. Tests also cover client disconnect, an overlong key,
-supervisor loss, fragmented commands and oversized input. Physical key/unkey
-timing is a separate, uncompleted dummy-load gate.
+supervisor loss, fragmented commands and oversized input. Normal live
+key/unkey was subsequently observed on the approved antenna. Deliberate RF
+fault handling and precise turnaround timing remain qualification gates.
 
 ## Audio fidelity and latency
 
@@ -83,7 +85,7 @@ signal's block rather than assuming an unbroken sample timeline.
 Independent calibration and radio/network turnaround remain outstanding.
 
 The initial 200 ms PTT lead and 150 ms audio tail are conservative,
-**unqualified** settings. The dummy-load test must check leading/trailing
+**unqualified** settings. Live testing must check leading/trailing
 audio, RF return to zero and fast modem turnarounds before RMS operation.
 
 ## TCI decision
@@ -97,5 +99,6 @@ implementation. TCI stays unused for this setup.
 
 Upstream STATUS documents VARA Winlink mail reception through K0SI and
 confirmed outbound delivery through KB8AY. That is evidence for Kestrel's
-interoperability at those stations. This Mac has not yet transmitted a VARA
-waveform, connected to an RMS over HF or transferred a Winlink message.
+interoperability at those stations. This Mac subsequently transmitted VARA
+connect requests at a 5 W setting, but has not yet connected to an RMS or
+transferred a Winlink message.
