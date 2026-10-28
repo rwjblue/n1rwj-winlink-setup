@@ -1,5 +1,6 @@
-# Copy to station.local.toml for machine-specific overrides (ignored by Git).
+# Authoritative station settings. Optional station.local.toml overrides stay local.
 callsign = "N1RWJ"
+locator = "FN41fr"
 rx_device = "K4 RX to WSJT-X"
 tx_device = "WSJT-X TX to K4"
 qk4_host = "127.0.0.1"
@@ -9,7 +10,7 @@ rigctld_port = 4532
 http_port = 8080
 amplitude = 0.05
 # Pat processes asynchronous PTT notifications. Allow its CAT command to arrive
-# before samples are played. Calibrate both values during the dummy-load test.
+# before samples are played. Both values still need radio-path qualification.
 ptt_lead_seconds = 0.20
 tx_tail_seconds = 0.15
 max_key_seconds = 30.0

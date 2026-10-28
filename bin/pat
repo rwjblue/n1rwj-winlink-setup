@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+station_root="$(cd "$(dirname "$0")/.." && pwd -P)"
+if [[ ! -x "$station_root/.venv/bin/python" ]]; then
+  echo 'Run mise run setup in the station repository first.' >&2
+  exit 1
+fi
+exec "$station_root/.venv/bin/python" "$station_root/tools/pat.py" "$@"

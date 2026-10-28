@@ -4,9 +4,10 @@ import tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
-def config():
-    values = tomllib.loads((ROOT / "config/station.toml").read_text())
-    local = ROOT / "config/station.local.toml"
+def config(root=None):
+    root = root or ROOT
+    values = tomllib.loads((root / "config/station.toml").read_text())
+    local = root / "config/station.local.toml"
     if local.exists():
         overrides = tomllib.loads(local.read_text())
         if overrides.keys() - values.keys():

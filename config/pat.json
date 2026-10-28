@@ -1,14 +1,8 @@
 {
-  "mycall": "N1RWJ",
   "secure_login_password": "",
-  "locator": "",
-  "http_addr": "127.0.0.1:8080",
   "auto_download_size_limit": 100000,
   "listen": ["varahf"],
   "schedule": {},
-  "hamlib_rigs": {
-    "qk4": {"network": "tcp", "address": "127.0.0.1:4532", "VFO": ""}
-  },
   "varahf": {"addr": "127.0.0.1:8300", "bandwidth": 2300, "rig": "qk4", "ptt_ctrl": true},
   "connect_aliases": {}
 }

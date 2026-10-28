@@ -15,6 +15,7 @@ QK4 was reused rather than rebuilt or replaced.
 | Area | Observation | Reproduce |
 |---|---|---|
 | Dependency setup | Pinned tools installed; project venv sync reran successfully. Fresh upstream checkout also materializes its files. | `mise run setup` |
+| Project configuration | Actual Pat resolves N1RWJ/FN41fr and local config/mailbox paths from a fresh copy of checked-in files, with reused installed runtimes and no ignored configuration. Both mise task and repo PATH launcher work. | `mise run config`, `mise run pat -- env`, `mise exec -- pat env` |
 | Pat/Kestrel | Pat reports `VARA modem (4.9.0.KestrelOpen) initialized`; HTTP status lists `varahf`. Both TCP ports attached. | `mise run start`, `mise run doctor` |
 | CAT reads | Hamlib K4 model 2047 reads frequency, mode, bandwidth and PTT through guarded QK4 CAT. | `mise run doctor` |
 | Pat frequency selection | Pat QSY set 14.1015 MHz USB/2800 Hz; readback matched. Original 14.0123 MHz CW/400 Hz was restored and PTT remained off. | `mise run receive-check` |
@@ -24,7 +25,7 @@ QK4 was reused rather than rebuilt or replaced.
 | RX cable conversion | 12->48 kHz chirp, gain 0.999333, residual SNR 63.0 dB, estimated latency 16.02 ms, no stream errors. QK4 was disconnected for the injected cable signal. | `mise run audio -- cable --direction rx` |
 | TX cable | 48 kHz chirp, gain 1.0, residual SNR >130 dB, estimated latency 16.0 ms, no stream errors. QK4 gate explicitly closed. | `mise run audio -- cable --direction tx` |
 | Pat/Hamlib PTT bench | Actual Pat and Hamlib produced TX/RX/TX/RX on a simulated K4. Key notification to CAT ~1.33 ms; unkey ~0.70 ms. Missing OFF forced unkey at the bench's 0.5 s deadline. No audio/radio opened. | `mise run bench-ptt` |
-| Interlocks | Twenty local tests pass, including receive-only refusal, CAT policy/deadman, native power limits, closing-ID ordering, bounded link-test cancellation and delayed unkey readback. | `mise run check` |
+| Interlocks/configuration | Twenty-three local tests pass, including fresh configuration, runtime drift/backup, environment isolation, receive-only refusal, CAT policy/deadman, native power limits, closing-ID ordering, bounded cancellation and delayed unkey readback. | `mise run check` |
 | Modem regression | 37 upstream host lifecycle and BW2300 codec tests passed. Synthetic payload recovery is not independent RF evidence. | Commands below |
 | Failure shutdown | SIGKILL to the live receive-only Kestrel process caused all five station listener ports to close; normal restart reattached Pat. | Supervisor log; deliberate manual fault injection |
 

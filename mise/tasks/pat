@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 #MISE description="Use Pat with this project configuration"
 set -euo pipefail
-exec .venv/bin/python tools/station.py pat "$@"
+exec ./bin/pat "$@"

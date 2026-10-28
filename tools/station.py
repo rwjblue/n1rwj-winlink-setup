@@ -5,7 +5,6 @@ import fcntl
 import json
 import os
 import pathlib
-import shutil
 import signal
 import socket
 import subprocess
@@ -14,6 +13,7 @@ import time
 
 from station_config import ROOT, config
 from qk4_cat import require_five_watt_limit
+from pat_config import configure, pat_args, pat_environment
 
 LOCAL = ROOT / ".local"
 
@@ -24,36 +24,6 @@ def port_open(port):
             return True
     except OSError:
         return False
-
-
-def configure():
-    target = LOCAL / "pat/config.json"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if not target.exists():
-        cfg = config()
-        template = json.loads((ROOT / "config/pat.json").read_text())
-        template["mycall"] = cfg["callsign"]
-        template["http_addr"] = f"127.0.0.1:{cfg['http_port']}"
-        template["hamlib_rigs"]["qk4"]["address"] = f"127.0.0.1:{cfg['rigctld_port']}"
-        target.write_text(json.dumps(template, indent=2) + "\n")
-        target.chmod(0o600)
-    return target
-
-
-def pat_args():
-    return [
-        shutil.which("pat") or "pat",
-        "--config",
-        str(configure()),
-        "--mbox",
-        str(LOCAL / "pat/mailbox"),
-        "--forms",
-        str(LOCAL / "pat/forms"),
-        "--event-log",
-        str(LOCAL / "logs/pat-events.json"),
-        "--log",
-        str(LOCAL / "logs/pat.log"),
-    ]
 
 
 def run_stack(transmit=False):
@@ -110,13 +80,13 @@ def run_stack(transmit=False):
         for sig in (signal.SIGINT, signal.SIGTERM):
             signal.signal(sig, request_stop)
 
-        def spawn(name, args, port, marker=None):
+        def spawn(name, args, port, marker=None, env=None):
             path = LOCAL / "logs" / f"{name}.log"
             offset = path.stat().st_size if path.exists() else 0
             log = path.open("a")
             handles.append(log)
             process = subprocess.Popen(
-                args, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT
+                args, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, env=env
             )
             children.append((name, process))
             for _ in range(300):
@@ -171,8 +141,14 @@ def run_stack(transmit=False):
             )
             spawn(
                 "pat",
-                [*pat_args(), "http", "--addr", f"127.0.0.1:{cfg['http_port']}"],
+                [
+                    *pat_args(log_name="pat"),
+                    "http",
+                    "--addr",
+                    f"127.0.0.1:{cfg['http_port']}",
+                ],
                 cfg["http_port"],
+                env=pat_environment(),
             )
             state.write_text(
                 json.dumps(
@@ -216,7 +192,7 @@ def run_stack(transmit=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["start", "stop", "status", "pat"])
+    parser.add_argument("command", choices=["start", "stop", "status"])
     parser.add_argument("--background", action="store_true")
     parser.add_argument(
         "--approved-transmit",
@@ -224,11 +200,9 @@ def main():
         help="Requires prior explicit user approval",
     )
     args, extra = parser.parse_known_args()
-    if extra and args.command != "pat":
+    if extra:
         parser.error(f"Unexpected arguments: {extra}")
     os.umask(0o077)
-    if args.command == "pat":
-        raise SystemExit(subprocess.call([*pat_args(), *extra]))
     if args.command == "status":
         state = LOCAL / "station.json"
         print(state.read_text() if state.exists() else "Station stopped")
