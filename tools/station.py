@@ -57,6 +57,22 @@ def pat_args():
 
 def run_stack(transmit=False):
     cfg = config()
+    pat_config = json.loads(configure().read_text())
+    expected_vara = {"addr": "127.0.0.1:8300", "rig": "qk4", "ptt_ctrl": True}
+    expected_rig = {
+        "network": "tcp",
+        "address": f"127.0.0.1:{cfg['rigctld_port']}",
+        "VFO": "",
+    }
+    if (
+        any(pat_config.get("varahf", {}).get(k) != v for k, v in expected_vara.items())
+        or pat_config.get("hamlib_rigs", {}).get("qk4") != expected_rig
+        or pat_config.get("schedule")
+        or pat_config.get("listen") != ["varahf"]
+    ):
+        raise SystemExit(
+            "Pat configuration bypasses the supervised path or enables other listeners/jobs; inspect .local/pat/config.json"
+        )
     LOCAL.mkdir(exist_ok=True, mode=0o700)
     (LOCAL / "logs").mkdir(exist_ok=True)
     with (LOCAL / "station.lock").open("w") as lock:
@@ -214,6 +230,7 @@ def main():
         state = LOCAL / "station.json"
         print(state.read_text() if state.exists() else "Station stopped")
     elif args.command == "stop":
+        LOCAL.mkdir(exist_ok=True)
         (LOCAL / "stop-request").touch()
         for _ in range(100):
             if not (LOCAL / "station.json").exists():
@@ -237,7 +254,11 @@ def main():
         for _ in range(600):
             if process.poll() is not None:
                 raise SystemExit("Startup failed; inspect .local/logs/supervisor.log")
-            if (LOCAL / "station.json").exists():
+            state = LOCAL / "station.json"
+            if (
+                state.exists()
+                and json.loads(state.read_text()).get("pid") == process.pid
+            ):
                 print("Receive-only station ready")
                 return
             time.sleep(0.1)

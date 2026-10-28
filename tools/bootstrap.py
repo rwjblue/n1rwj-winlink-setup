@@ -7,12 +7,13 @@ import subprocess
 root = pathlib.Path(__file__).resolve().parents[1]
 for name, item in json.loads((root / "upstream.lock.json").read_text()).items():
     dest = root / ".cache/upstream" / name
-    if not dest.exists():
+    created = not dest.exists()
+    if created:
         subprocess.run(
             [
                 "git",
                 "clone",
-                "--filter=blob:none",
+                "--depth=1",
                 "--no-checkout",
                 item["url"],
                 str(dest),
@@ -22,15 +23,41 @@ for name, item in json.loads((root / "upstream.lock.json").read_text()).items():
     revision = subprocess.check_output(
         ["git", "-C", str(dest), "rev-parse", "HEAD"], text=True
     ).strip()
-    if revision != item["commit"]:
+    if not created:
         dirty = subprocess.check_output(
             ["git", "-C", str(dest), "status", "--porcelain"], text=True
         )
         if dirty:
             raise SystemExit(f"Refusing to overwrite changes in {dest}")
-        subprocess.run(
-            ["git", "-C", str(dest), "fetch", "origin", item["commit"]], check=True
+    if created or revision != item["commit"]:
+        present = (
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(dest),
+                    "cat-file",
+                    "-e",
+                    item["commit"] + "^{commit}",
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            ).returncode
+            == 0
         )
+        if not present:
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(dest),
+                    "fetch",
+                    "--depth=1",
+                    "origin",
+                    item["commit"],
+                ],
+                check=True,
+            )
         subprocess.run(
             ["git", "-C", str(dest), "checkout", "--detach", item["commit"]], check=True
         )

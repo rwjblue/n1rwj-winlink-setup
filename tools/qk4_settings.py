@@ -28,11 +28,12 @@ def main():
         raise SystemExit("Quit QK4 before changing its preferences")
     prefs = pathlib.Path.home() / "Library/Preferences" / (DOMAIN + ".plist")
     backup = (
-        ROOT
-        / ".local/backups"
+        pathlib.Path.home()
+        / "Library/Application Support/n1rwj-winlink-setup/backups"
         / (datetime.datetime.now(datetime.UTC).strftime("qk4-%Y%m%dT%H%M%S%fZ.plist"))
     )
-    backup.parent.mkdir(parents=True, exist_ok=True)
+    backup.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    backup.parent.chmod(0o700)
     if prefs.exists():
         shutil.copy2(prefs, backup)
         backup.chmod(0o600)

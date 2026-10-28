@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Read Pat, rig and device status without transmitting"
+set -euo pipefail
+exec .venv/bin/python tools/doctor.py
