@@ -1,6 +1,9 @@
 """Use upstream audio interfaces, with an independent receive-only interlock."""
 
 import argparse
+import datetime
+import faulthandler
+import queue
 import signal
 import sys
 import time
@@ -11,6 +14,32 @@ sys.path.insert(0, str(ROOT / ".cache/upstream/hfmodem/tools"))
 from kestrel_connect import AudioVaraIO  # noqa: E402
 from hfmodem.kestrel.host.audio_runtime import AudioHostRuntime  # noqa: E402
 from hfmodem.kestrel.host.server import VaraServer  # noqa: E402
+from hfmodem.kestrel.host.vara_modem import VaraHostModem  # noqa: E402
+
+
+class WinlinkModem(VaraHostModem):
+    def _new_station(self):
+        station = super()._new_station()
+        # The optional VarAC CQ/UI decoder can spend minutes turbo-decoding
+        # non-VARA audio and starve ARQ owner polling/IAMALIVE. Winlink uses
+        # the separate ARQ receiver; it needs no passive VarAC broadcasts.
+        station.cq_detector = None
+        return station
+
+
+class WinlinkRuntime(AudioHostRuntime):
+    def modem_factory(self):
+        # Preserve the pinned upstream single-owner attachment queue.
+        modem = WinlinkModem(
+            self.transport, high_speed=self.high_speed, clock=self.clock
+        )
+        try:
+            self._new.put_nowait(modem)
+        except queue.Full:
+            raise ConnectionAbortedError(
+                "prior VARA attachment awaits its owner"
+            ) from None
+        return modem
 
 
 class StationAudio(AudioVaraIO):
@@ -43,12 +72,19 @@ def main():
     args = parser.parse_args()
     cfg = config()
     audio = StationAudio(cfg, args.approved_transmit)
-    runtime = AudioHostRuntime(audio)
+    runtime = WinlinkRuntime(audio)
+    faulthandler.register(signal.SIGUSR1, all_threads=True)
+
+    def host_log(direction, message):
+        stamp = datetime.datetime.now(datetime.UTC).isoformat(timespec="milliseconds")
+        print(f"{stamp} {direction}: {message}", flush=True)
+
     server = VaraServer(
         host="127.0.0.1",
         cmd_port=8300,
         data_port=8301,
         modem_factory=runtime.modem_factory,
+        log=host_log,
     )
     running = True
 
