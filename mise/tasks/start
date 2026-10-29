@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-#MISE description="Start the receive-only station"
+#MISE description="Start the station for HF mail (transmit-enabled, background)"
 set -euo pipefail
-exec .venv/bin/python tools/station.py start --background
+exec .venv/bin/python tools/station.py start --background "$@"

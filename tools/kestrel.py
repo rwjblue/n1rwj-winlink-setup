@@ -23,7 +23,7 @@ class WinlinkModem(VaraHostModem):
         if not getattr(self._transport, "transmit", False):
             print(
                 "Receive-only: CONNECT refused; start an RF session with "
-                "mise run transmit -- --approved-transmit",
+                "mise run stop, then mise run start",
                 flush=True,
             )
             # Pat ignores WRONG while dialing and waits for a link outcome.

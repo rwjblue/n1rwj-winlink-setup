@@ -106,6 +106,10 @@ run `mise run audio -- cable --direction rx`. For silent receive, check QK4's
 connection/output, cable Pass-Thru, left-channel routing and volume. QK4's
 `NO RX AUDIO` log means Qt rejected the device format.
 
+`receive-check` requires a receive-only station. Run `mise run stop`, then
+`mise run start -- --receive-only` before this diagnostic. Normal `mise run start`
+enables transmission; stop and start again without the option to resume HF mail.
+
 Use `doctor` for health checks: probing port 8300 with netcat attaches a modem
 client. `mise run tx-test` prints a plan without network/audio access. Its
 approved execution sends `N1RWJ` in CW at 20 WPM (3.78 seconds) with a

@@ -158,7 +158,7 @@ def main():
         parser.error("RF execution requires the operator-approved transmit flag")
     state = json.loads((LOCAL / "station.json").read_text())
     if not state.get("transmit"):
-        raise SystemExit("Start the approved foreground RF station first")
+        raise SystemExit("Use mise run stop, then mise run start to enable RF first")
     initial = api("status")
     if initial.get("connected") or initial.get("dialing"):
         raise SystemExit("An exchange is already active; refusing to interrupt it")

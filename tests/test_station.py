@@ -4,9 +4,59 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import station
+
+
+class StationStartup(unittest.TestCase):
+    def test_start_enables_transmission_unless_receive_only_is_requested(self):
+        for args, transmit in (([], True), (["--receive-only"], False)):
+            with (
+                self.subTest(args=args),
+                patch("sys.argv", ["station", "start", *args]),
+                patch("station.os.umask"),
+                patch("station.run_stack") as run_stack,
+            ):
+                station.main()
+            run_stack.assert_called_once_with(transmit=transmit)
+
+    def test_background_start_preserves_mode_in_the_supervisor(self):
+        for args, transmit in (([], True), (["--receive-only"], False)):
+            with self.subTest(args=args), tempfile.TemporaryDirectory() as folder:
+                local = Path(folder)
+                process = Mock(pid=12345)
+                process.poll.return_value = None
+
+                def spawn(*_args, **_kwargs):
+                    (local / "station.json").write_text(
+                        json.dumps({"pid": process.pid, "transmit": transmit})
+                    )
+                    return process
+
+                with (
+                    patch("sys.argv", ["station", "start", "--background", *args]),
+                    patch("station.LOCAL", local),
+                    patch("station.os.umask"),
+                    patch("station.subprocess.Popen", side_effect=spawn) as popen,
+                    patch("station.run_stack") as run_stack,
+                    contextlib.redirect_stdout(io.StringIO()) as output,
+                ):
+                    station.main()
+                self.assertEqual(
+                    popen.call_args.args[0],
+                    [
+                        station.sys.executable,
+                        str(Path(station.__file__).resolve()),
+                        "start",
+                        *args,
+                    ],
+                )
+                self.assertTrue(popen.call_args.kwargs["start_new_session"])
+                run_stack.assert_not_called()
+                mode = "Transmit-enabled" if transmit else "Receive-only"
+                self.assertIn(f"{mode} station ready:", output.getvalue())
+                self.assertIn("mise run stop", output.getvalue())
 
 
 class RFStartup(unittest.TestCase):

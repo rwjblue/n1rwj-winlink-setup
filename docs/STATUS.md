@@ -20,7 +20,7 @@ uv 0.11.7; Pat v1.0.0 at the pinned source revision; hfmodem/hfhost/creance
 |---|---|---|
 | Dependency setup | Pinned tools installed; project venv sync reran successfully. Fresh upstream checkout also materializes its files. | `mise run setup` |
 | Project configuration | Actual Pat resolves N1RWJ/FN41fr and local config/mailbox paths from a fresh copy of checked-in files, with reused installed runtimes and no ignored configuration. Both mise task and repo PATH launcher work. | `mise run config`, `mise run pat -- env`, `mise exec -- pat env` |
-| Pat/Kestrel | Pat reports `VARA modem (4.9.0.KestrelOpen) initialized`; HTTP status lists `varahf`. Both TCP ports attached. | `mise run start`, `mise run doctor` |
+| Pat/Kestrel | Pat reports `VARA modem (4.9.0.KestrelOpen) initialized`; HTTP status lists `varahf`. Both TCP ports attached. | `mise run start -- --receive-only`, `mise run doctor` |
 | CAT reads | Hamlib K4 model 2047 reads frequency, mode, bandwidth and PTT through guarded QK4 CAT. | `mise run doctor` |
 | Pat frequency selection | Pat QSY at 7.055 MHz DATA-A normal, 3 kHz RX; native MD6/DT0/BW0300 and TQ0 matched before/after receive capture. | `mise run receive-check` |
 | Native power setting | `PC050L` read back as 5.0 W; original `PC075H` was restored. TQ0 was verified before, during and after; no audio or key-up generated. | Controlled native CAT check; archived `logs/power-check.log` |

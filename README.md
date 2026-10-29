@@ -35,13 +35,17 @@ Follow [hardware and macOS setup](docs/SETUP.md) when configuring another Mac.
 1. Open QK4 Vail and connect its saved local K4 profile. Close other modem/CAT clients.
 2. Run `mise run start`. This checks QK4's saved Loopback device selections,
    then starts Kestrel, guarded CAT/Hamlib and Pat together,
-   **receive-only**, in the background, and selects normal DATA-A with an
+   **transmit-enabled**, in the background, and selects normal DATA-A with an
    RX filter of at least 2.8 kHz. Both mode and data submode are checked before Pat starts.
 3. Open [Pat's mailbox](http://127.0.0.1:8080/ui). Read mail or compose a message
-   into the outbox. Sending requires the separate RF session described below.
+   into the outbox. Use Connect to exchange mail over HF as described below.
 4. Run `mise run doctor` to check the station, or `mise run status` for its mode.
 5. Run `mise run stop` when finished. `mise run unkey` requests RX and verifies
    receive readback if an unexpected transmission occurs.
+
+Normal operation needs only `start` and `stop`; there is no separate transmit
+command or approval flag. While started, the station can transmit to connect
+or answer incoming calls. Set the desired RF power in QK4/K4 before starting.
 
 Use the project launcher for other Pat commands:
 
@@ -122,7 +126,7 @@ recalibrate before using that new pair. `mise run calibrate-audio` prints a
 plan; [SETUP](docs/SETUP.md#audio-drive-calibration) explains the TX TEST sweep.
 The radio's RF power setting is independent and is never changed by these tools.
 
-## An approved RF session
+## Exchanging mail over HF
 
 The operator authorized the existing resonant 40m/20m antenna and use of the
 radio's selected power setting for this setup. Earlier recorded RF tests used
@@ -152,18 +156,17 @@ prevent reception on a higher-frequency sub-receiver band. A rejected CAT
 band change can briefly appear in QK4's cached state before reverting.
 
 ```sh
-mise run stop
-mise run transmit -- --approved-transmit  # Keep this foreground terminal open
+mise run start
 ```
 
 For mail, open [Pat](http://127.0.0.1:8080/ui), compose your message, then use
 its Connect form with VARA HF, the RMS callsign, dial frequency in kHz and
 bandwidth from the current RMS list. The `.env` credentials are already loaded.
-Keep this terminal open during the exchange. To abort reliably, use Ctrl-C in
-the RF terminal or `mise run stop`: Pat's UI cancellation can leave a dial
-queued behind BUSY.
+The station runs in the background, so the terminal can be closed. Run
+`mise run stop` when finished or to abort reliably: Pat's UI cancellation can
+leave a dial queued behind BUSY.
 
-For a bounded **radio-link-only** check in another terminal:
+For a bounded **radio-link-only** diagnostic while the station is running:
 
 ```sh
 mise run link-test -- 'varahf:///KB8AY?bw=2750&freq=7100' --execute --approved-transmit
@@ -175,20 +178,25 @@ CONNECT, with split/RIT/XIT off, and reports the radio's power after tuning.
 It monitors frequency throughout. An independent 45-second timer closes the
 whole RF stack; it does not rely on Pat cancelling a queued busy-channel dial.
 Successful HF connections are disconnected before stack shutdown. Original
-dial frequency is restored after receive readback. The RF terminal exits at
-test completion; restart it for another attempt.
+dial frequency is restored after receive readback. Run `mise run start` again
+after the test to resume station operation.
 
 `link-test` disconnects once an HF link appears; use the UI flow above for an
 actual mail exchange. Without `--execute`, it only prints a plan. RMS URLs
-specify **dial kHz**; the audio centre is 1500 Hz higher. Ctrl-C in the RF
-terminal stops the complete stack. Receive audio is saved under
-`.local/recordings` during RF sessions.
+specify **dial kHz**; the audio centre is 1500 Hz higher. The standalone RF
+diagnostics retain their execution/approval flags. Receive audio is saved
+under `.local/recordings` during transmit-enabled operation.
 
 Pat owns PTT through Hamlib and the CAT guard. Kestrel has no CAT controller.
-The default receive stack independently blocks keying and TX samples. Child
-failure stops the stack; the guard unkeys on disconnect and limits keys to
-30 seconds. Direct QK4 controls and unrelated clients remain independent.
+Child failure stops the stack; the guard unkeys on disconnect and limits
+keys to 30 seconds. Direct QK4 controls and unrelated clients remain independent.
 See [source and audio findings](docs/UPSTREAM.md) for details.
+
+For receive-only diagnostics, stop the station and run
+`mise run start -- --receive-only`. This independently blocks RF connections,
+keying and transmit audio while keeping the mailbox available for reading and
+composing. `mise run receive-check` requires this mode. Stop and start without
+the option to return to normal operation.
 
 ## Troubleshooting and maintenance
 
@@ -199,12 +207,11 @@ The configurator backs up preferences before replacing audio selections.
 This fixes silent Loopback RX, an unintended microphone source or a gain
 mismatch; restart QK4 so the saved settings become active.
 `connect: connection refused` on `127.0.0.1:8300` means Kestrel is stopped;
-restart the complete station, rather than Pat alone. `mise run start` is
-receive-only: its modem rejects outgoing connections and incoming ARQ replies
-without closing the mailbox or TCP ports. Pat currently labels that rejected
-connection `connect timeout`; `.local/logs/kestrel.log` explains the mode.
-To exchange mail over HF, run `mise run stop`, then
-`mise run transmit -- --approved-transmit` and use the UI's Connect form.
+restart the complete station with `mise run start`. If you started with
+`--receive-only`, the modem rejects outgoing connections and incoming ARQ
+replies without closing the mailbox or TCP ports. Pat currently labels that
+rejected connection `connect timeout`; `.local/logs/kestrel.log` explains the
+mode. Run `mise run stop`, then `mise run start` to enable HF connections.
 
 For a callsign/config problem, run `mise run pat -- env`: it must report
 `N1RWJ`, `FN41fr` and paths inside this checkout. If bare `pat` still reports

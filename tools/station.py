@@ -1,4 +1,4 @@
-"""Supervise the station as one unit; default to receive-only."""
+"""Supervise the station as one unit, with optional receive-only operation."""
 
 import argparse
 import datetime
@@ -219,9 +219,9 @@ def main():
     parser.add_argument("command", choices=["start", "stop", "status"])
     parser.add_argument("--background", action="store_true")
     parser.add_argument(
-        "--approved-transmit",
+        "--receive-only",
         action="store_true",
-        help="Requires prior explicit user approval",
+        help="Block RF connections, keying and transmit audio",
     )
     args, extra = parser.parse_known_args()
     if extra:
@@ -240,12 +240,11 @@ def main():
             time.sleep(0.1)
         raise SystemExit("Shutdown did not complete; inspect supervisor.log")
     elif args.background:
-        if args.approved_transmit:
-            parser.error("Transmit sessions must remain in the foreground")
         (LOCAL / "logs").mkdir(parents=True, exist_ok=True)
+        flags = ["--receive-only"] if args.receive_only else []
         with (LOCAL / "logs/supervisor.log").open("a") as log:
             process = subprocess.Popen(
-                [sys.executable, str(pathlib.Path(__file__).resolve()), "start"],
+                [sys.executable, str(pathlib.Path(__file__).resolve()), "start", *flags],
                 cwd=ROOT,
                 start_new_session=True,
                 stdin=subprocess.DEVNULL,
@@ -260,17 +259,17 @@ def main():
                 state.exists()
                 and json.loads(state.read_text()).get("pid") == process.pid
             ):
+                mode = "Receive-only" if args.receive_only else "Transmit-enabled"
                 print(
-                    "Receive-only station ready: read/compose at "
+                    f"{mode} station ready: "
                     f"http://127.0.0.1:{config()['http_port']}/ui\n"
-                    "For HF connections: mise run stop, then "
-                    "mise run transmit -- --approved-transmit"
+                    "Stop the station with mise run stop"
                 )
                 return
             time.sleep(0.1)
         raise SystemExit("Startup still pending; inspect .local/logs/supervisor.log")
     else:
-        run_stack(args.approved_transmit)
+        run_stack(transmit=not args.receive_only)
 
 
 if __name__ == "__main__":

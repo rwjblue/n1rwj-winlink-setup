@@ -30,10 +30,14 @@ def main():
     args = parser.parse_args()
     station = ROOT / ".local/station.json"
     if not station.exists():
-        raise SystemExit("Station stopped: connect QK4, then mise run start")
+        raise SystemExit(
+            "Station stopped: connect QK4, then mise run start -- --receive-only"
+        )
     running = json.loads(station.read_text())
     if running["transmit"]:
-        raise SystemExit("Use mise run start (receive-only) for this check")
+        raise SystemExit(
+            "Use mise run stop, then mise run start -- --receive-only for this check"
+        )
     before = operating_state()
     if before["TQ"] != "0":
         raise SystemExit("Radio is transmitting; receive check refused")
