@@ -1,6 +1,8 @@
 """Bound one approved Pat VARA radio-link attempt and always cancel on timeout."""
 
 import argparse
+import contextlib
+import datetime
 import json
 import threading
 import time
@@ -8,7 +10,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from qk4_cat import require_five_watt_limit, wait_for_receive
+from qk4_cat import (
+    operating_state,
+    require_five_watt_limit,
+    restore_frequency,
+    wait_for_receive,
+)
 from station import LOCAL
 from station_config import config
 
@@ -16,10 +23,69 @@ from station_config import config
 def api(path, data=None, timeout=3):
     cfg = config()
     request = urllib.request.Request(
-        f"http://127.0.0.1:{cfg['http_port']}/api/{path}", data=data
+        f"http://127.0.0.1:{cfg['http_port']}/api/{path}",
+        data=data,
+        headers={"Content-Type": "application/json"} if path == "qsy" else {},
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.load(response)
+
+
+def require_frequency(hz, settle_seconds=0, stable_seconds=0):
+    deadline = time.monotonic() + settle_seconds
+    matching_since = None
+    while True:
+        state = operating_state()
+        now = time.monotonic()
+        if (
+            int(state["FA"]) == hz
+            and state["MD"] == "2"
+            and all(state[key] == "0" for key in ("FT", "RT", "XT"))
+        ):
+            if matching_since is None:
+                matching_since = now
+            if now - matching_since >= stable_seconds:
+                return state
+        else:
+            matching_since = None
+        if now >= deadline:
+            raise RuntimeError(f"Expected {hz} Hz USB, split/RIT/XIT off; got {state}")
+        time.sleep(0.1)
+
+
+@contextlib.contextmanager
+def tuned_frequency(khz):
+    previous = operating_state()
+    if previous["TQ"] != "0":
+        raise RuntimeError("Radio already transmitting; preflight refused")
+    (LOCAL / "logs/link-test-radio-before.json").write_text(
+        json.dumps(previous, indent=2)
+    )
+    hz = round(khz * 1000)
+    try:
+        api("qsy", json.dumps({"transport": "varahf", "freq": khz}).encode(), timeout=6)
+        require_frequency(hz, settle_seconds=5, stable_seconds=1)
+        print(
+            f"Frequency verified before CONNECT: {hz} Hz USB, split/RIT/XIT off",
+            flush=True,
+        )
+        yield hz
+    finally:
+        # Pat sees the pre-tuned frequency as its QSX return. Restore the
+        # original operator frequency ourselves, after cancellation/unkey.
+        try:
+            if (LOCAL / "stop-request").exists():
+                deadline = time.monotonic() + 8
+                while (LOCAL / "station.json").exists():
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError(
+                            "RF stack did not stop; frequency restoration deferred"
+                        )
+                    time.sleep(0.1)
+            restore_frequency(int(previous["FA"]))
+        except BaseException:
+            (LOCAL / "stop-request").touch()
+            raise
 
 
 def cancel_attempt(worker):
@@ -34,11 +100,25 @@ def cancel_attempt(worker):
         else:
             raise RuntimeError("Pat did not finish cancellation")
         worker.join(timeout=2)
+        if worker.is_alive():
+            raise RuntimeError("Pat's dial request is still running after cancellation")
         wait_for_receive()
     except BaseException:
         # A failed control request must not leave an unattended RF operation.
         (LOCAL / "stop-request").touch()
         raise
+
+
+def stop_rf_stack():
+    # Pat can acknowledge cancellation while a BUSY wait still owns a queued
+    # dial. Remove its physical transmit capability before waiting on HTTP.
+    (LOCAL / "stop-request").touch()
+    deadline = time.monotonic() + 12
+    while (LOCAL / "station.json").exists():
+        if time.monotonic() >= deadline:
+            raise RuntimeError("RF stack did not stop at the attempt deadline")
+        time.sleep(0.05)
+    wait_for_receive(request_rx=True)
 
 
 def main():
@@ -85,34 +165,75 @@ def main():
         except (OSError, urllib.error.HTTPError, ValueError) as error:
             outcome["connect_result"] = str(error)
 
-    worker = threading.Thread(target=connect, daemon=True)
-    connected = False
-    worker.start()
-    deadline = time.monotonic() + args.seconds
-    try:
-        while worker.is_alive() and time.monotonic() < deadline:
-            status = api("status")
-            require_five_watt_limit()
-            if status.get("connected"):
-                connected = True
-                break
-            time.sleep(0.25)
-    except BaseException:
-        # Loss of telemetry or a power-limit violation must close the CAT
-        # gate immediately rather than permit another normal over or CW ID.
-        (LOCAL / "stop-request").touch()
-        raise
-    finally:
-        # Closing an HTTP request does not cancel Pat's radio operation.
-        # Explicitly abort, then allow closing ID/PTT OFF to finish.
-        if not (LOCAL / "stop-request").exists():
-            cancel_attempt(worker)
+    with tuned_frequency(frequency) as hz:
+        # Band changes can recall a different per-band power setting.
+        require_five_watt_limit()
+        worker = threading.Thread(target=connect, daemon=True)
+        connected = False
+        expired = threading.Event()
+
+        def expire():
+            expired.set()
+            outcome["deadline_requested_utc"] = datetime.datetime.now(
+                datetime.UTC
+            ).isoformat()
+            (LOCAL / "stop-request").touch()
+
+        # The timer must run independently of blocked HTTP/CAT operations.
+        timer = threading.Timer(args.seconds, expire)
+        timer.daemon = True
+        outcome["rf_deadline_utc"] = (
+            datetime.datetime.now(datetime.UTC)
+            + datetime.timedelta(seconds=args.seconds)
+        ).isoformat()
+        timer.start()
+        worker.start()
+        deadline = time.monotonic() + args.seconds
+        try:
+            while worker.is_alive() and time.monotonic() < deadline:
+                status = api("status")
+                require_five_watt_limit()
+                require_frequency(hz)
+                if status.get("connected"):
+                    connected = True
+                    break
+                time.sleep(0.25)
+        except BaseException as error:
+            # Loss of telemetry, power violation or frequency drift closes
+            # the CAT gate immediately, without another normal over or ID.
+            stop_rf_stack()
+            if not expired.is_set() or isinstance(
+                error, (KeyboardInterrupt, SystemExit)
+            ):
+                raise
+        finally:
+            if time.monotonic() >= deadline:
+                expired.set()
+            try:
+                if connected and not expired.is_set():
+                    try:
+                        cancel_attempt(worker)
+                    finally:
+                        stop_rf_stack()
+                else:
+                    stop_rf_stack()
+                worker.join(timeout=2)
+                outcome["rf_stack_stopped_utc"] = datetime.datetime.now(
+                    datetime.UTC
+                ).isoformat()
+            finally:
+                timer.cancel()
     outcome.update(
         {
             "hf_connected": connected,
             "radio_unkeyed": True,
             "mail_tested": False,
             "url": args.url,
+            "attempt_end": "deadline"
+            if expired.is_set()
+            else "hf_connected"
+            if connected
+            else "no_link",
         }
     )
     (LOCAL / "logs/link-test-result.json").write_text(json.dumps(outcome, indent=2))

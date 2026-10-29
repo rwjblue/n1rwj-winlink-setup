@@ -122,6 +122,8 @@ def run_stack(transmit=False):
                     "rigctld",
                     "-m",
                     "2047",
+                    "-C",
+                    "cache_timeout=0",
                     "-r",
                     f"127.0.0.1:{cfg['cat_guard_port']}",
                     "-T",

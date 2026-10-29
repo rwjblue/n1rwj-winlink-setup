@@ -39,6 +39,20 @@ compression, TX EQ, VOX, noise reduction/blanking and automatic notch.
 Radio DSP settings have not been automated or qualified. QK4's amplifier
 integration was disabled during the first trial.
 
+For initial Winlink tests, select the band in QK4 and keep VFO B on the same
+band as A. The [K4 operating manual](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4%20Built-In%20Operating%20Manual%20rev%20D14/K4BuiltInOperatingManualrevD14.html)
+documents a shared-antenna constraint: the transmit VFO's low-pass filter must
+allow the other receiver's band. A lower transmit band can conflict with a
+higher receive band. The `VFO B Different Band` menu setting also matters.
+Sub audio volume zero does not turn the sub receiver off. QK4's current CAT
+`SB;` reply is a fixed placeholder, so do not use it to prove SUB is disabled.
+
+The link test requires stable QK4 frequency readback, USB and split/RIT/XIT off
+before CONNECT, and rejects transient optimistic UI state. Hamlib caching is
+disabled in the supervised rigctld so status reads do not reuse a SET value.
+QK4 still serves its own RadioState cache; this is not an independent RF
+frequency measurement.
+
 ## Control path
 
 ```text
@@ -54,8 +68,9 @@ at or below 5 W. The standalone test temporarily sets native `PC050L` and
 restores the original setting.
 
 Closing CW identification finishes before DISCONNECTED is reported, allowing
-Pat to restore frequency afterward. This ordering correction is unit tested;
-its live verification is pending. Passive VarAC broadcast decoding is disabled
+Pat to restore frequency afterward. This ordering was observed live with Vail.
+Deadline/error shutdown closes CAT immediately and may interrupt closing ID.
+Passive VarAC broadcast decoding is disabled
 in this launcher because unrelated turbo decoding could stall ARQ/heartbeats.
 
 The upstream audio journal's `dry_run` label describes its lack of an own rig

@@ -1,9 +1,10 @@
 # Station evidence — 2026-10-28
 
-**Current state: RF keying and output have been verified on the approved
-antenna at a 5 W setting. The first RMS did not answer. The stack is stopped;
-QK4 exited and the Mac is locked, preventing app controls from reopening it.
-No RMS link or end-to-end HF message transfer is claimed.**
+**Current state: testing resumed with the operator's QK4 Vail build. RF output
+and normal unkeying are observed, but no RMS link or HF message transfer is
+claimed. Cross-band CAT tuning and delayed cancellation exposed gaps; stable
+tuning gates and independent RF-stack deadline shutdown are now implemented.
+The stack is stopped while these changes are verified.**
 
 Test environment: Apple Silicon arm64 macOS; mise Python 3.14.4, Go 1.26.2,
 uv 0.11.7; Pat v1.0.0 at the pinned source revision; hfmodem/hfhost/creance
@@ -25,7 +26,7 @@ QK4 was reused rather than rebuilt or replaced.
 | RX cable conversion | 12->48 kHz chirp, gain 0.999333, residual SNR 63.0 dB, estimated latency 16.02 ms, no stream errors. QK4 was disconnected for the injected cable signal. | `mise run audio -- cable --direction rx` |
 | TX cable | 48 kHz chirp, gain 1.0, residual SNR >130 dB, estimated latency 16.0 ms, no stream errors. QK4 gate explicitly closed. | `mise run audio -- cable --direction tx` |
 | Pat/Hamlib PTT bench | Actual Pat and Hamlib produced TX/RX/TX/RX on a simulated K4. Key notification to CAT ~1.33 ms; unkey ~0.70 ms. Missing OFF forced unkey at the bench's 0.5 s deadline. No audio/radio opened. | `mise run bench-ptt` |
-| Interlocks/configuration | Twenty-three local tests pass, including fresh configuration, runtime drift/backup, environment isolation, receive-only refusal, CAT policy/deadman, native power limits, closing-ID ordering, bounded cancellation and delayed unkey readback. | `mise run check` |
+| Interlocks/configuration | Twenty-seven local tests pass, including transient tune rejection, split/RIT/XIT refusal, live-dial cancellation detection, fresh configuration, environment isolation, receive-only policy/deadman and closing-ID ordering. | `mise run check` |
 | Modem regression | 37 upstream host lifecycle and BW2300 codec tests passed. Synthetic payload recovery is not independent RF evidence. | Commands below |
 | Failure shutdown | SIGKILL to the live receive-only Kestrel process caused all five station listener ports to close; normal restart reattached Pat. | Supervisor log; deliberate manual fault injection |
 
@@ -61,11 +62,10 @@ remain under the adjacent `backups` directory outside the repository.
 
 ## Remaining gates
 
-1. Unlock the Mac and reopen/connect QK4. The user already approved antenna
-   RF tests on 40m/20m at 5 W; no repeat RF approval is needed for this work.
-2. Try another current RMS, with receive recording and corrected closing-ID
-   order. KB8AY on 7.100 MHz / BW2750 is a candidate with upstream
-   interoperability evidence, listed 1013 km from the configured grid.
+1. Complete a valid bounded RMS attempt after stable band/frequency selection.
+   Use the operator's running QK4 Vail; antenna testing at 5 W is authorized.
+2. Verify independent deadline shutdown on the live RF path. A receive-only
+   deadline drill closed all five listeners and confirmed TQ0.
 3. Qualify leading/trailing waveforms and physical unkey on an interrupted
    RF client. Normal live key/unkey is observed; deliberate loss/deadman
    tests so far use a simulated transmitter.
@@ -125,3 +125,39 @@ optional decoder off on every ARQ station replacement. Three successive
 minute heartbeats were observed on one live attachment after the fix; CPU
 use dropped from roughly one saturated core to a few percent. The ARQ
 receiver remains enabled.
+
+## QK4 Vail follow-up (2026-10-28, Eastern)
+
+The operator reopened QK4 Vail `0.8.0-beta.1.7-vail` (bundle
+`com.rwjblue.qk4.vail`), replacing the earlier app for live tests. The UI tool
+could not attach to this bundle; its CAT interface remained available.
+
+A first KB8AY attempt requested 7.100 MHz while all 720 sampled QK4 frequency
+frames remained at 14.1085 MHz. It was stopped with TQ0 verified. That trial
+cannot establish gateway reachability. Native tuning showed brief optimistic
+matches followed by a return to the old band. The operator then tuned 7.100 MHz
+from Vail's UI; VFO B also moved onto 40m. Same-band CAT changes subsequently
+remained stable. The operator identified the sub-receiver/band constraint as
+a likely cause. Antenna assignments and the exact rejection mechanism have
+not been independently established.
+
+At 21:24–21:26 Eastern, a second KB8AY attempt held 7.100 MHz USB with
+split/RIT/XIT off and native PC050L. Pat waited for BUSY. Cancellation was
+requested at 21:25:34, but its pending dial survived until the channel cleared
+at 21:25:54, then emitted CONNECT and DISCONNECT together. One connect request
+and closing CW ID transmitted. PTT OFF preceded DISCONNECTED, and QSX followed.
+No HF connection was observed. This exposed that API cancellation/status alone
+was insufficient to enforce an RF deadline; the old bounded-test claim was
+not supported by this run.
+
+The revised test uses an independent timer to stop the entire supervised
+stack, removing CAT transmit capability even if HTTP is blocked or a dial
+remains queued. It also stops the stack after any unsuccessful attempt,
+rejects a live worker after cancellation, verifies stable QK4 state before
+CONNECT, and rechecks per-band power. A receive-only deadline drill has been
+completed; live verification of this correction remains pending.
+
+Private evidence: `.local/logs/vail-*.json*`, `.local/logs/pat.log`,
+`.local/logs/kestrel.log`, and `.local/recordings/rx-20261029T012436Z.wav`.
+The recording has 114 seconds of receive audio; the capture reported no xruns
+or TX underruns. No CRC-valid received VARA frame has been established.

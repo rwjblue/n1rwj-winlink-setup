@@ -95,6 +95,11 @@ Connect QK4, select USB with an appropriate filter, disable speech compression
 and TX EQ, and confirm the native QRP setting is at most 5 W. DSP settings and
 PTT timing still need radio-path qualification. Then:
 
+Select the band in QK4 first. Keep both VFOs on that band for initial tests:
+when receivers share an antenna, the transmit band's low-pass filter can
+prevent reception on a higher-frequency sub-receiver band. A rejected CAT
+band change can briefly appear in QK4's cached state before reverting.
+
 ```sh
 mise run stop
 mise run transmit -- --approved-transmit  # Keep this foreground terminal open
@@ -102,9 +107,16 @@ mise run transmit -- --approved-transmit  # Keep this foreground terminal open
 mise run link-test -- 'varahf:///KB8AY?bw=2750&freq=7100' --execute --approved-transmit
 ```
 
-The bounded link test stops on an HF connection or after 45 seconds, cancels
-the attempt, and verifies receive readback. It tests the radio link before
-mail authentication. Without `--execute`, it only prints a plan. RMS URLs
+The link test requires a second of stable frequency/mode readback before
+CONNECT, with split/RIT/XIT off, and rechecks power after tuning. It monitors
+frequency and power throughout. An independent 45-second timer closes the
+whole RF stack; it does not rely on Pat cancelling a queued busy-channel dial.
+Successful HF connections are disconnected before stack shutdown. Original
+dial frequency is restored after receive readback. The RF terminal exits at
+test completion; restart it for another attempt.
+
+It tests the radio link before mail authentication. Without `--execute`, it
+only prints a plan. RMS URLs
 specify **dial kHz**; the audio centre is 1500 Hz higher. Ctrl-C in the RF
 terminal stops the complete stack. Receive audio is saved under
 `.local/recordings` during RF sessions.
