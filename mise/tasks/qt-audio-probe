@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 #MISE description="Check QK4's exact Qt audio format against installed devices"
+#MISE hide=true
 set -euo pipefail
 qt_prefix="$(brew --prefix qt)"
-mkdir -p .local
+mkdir -p .cache/bin
 clang++ -std=c++17 tools/qt-audio-probe.cpp \
   -I"$qt_prefix/include" -I"$qt_prefix/lib/QtCore.framework/Headers" \
   -I"$qt_prefix/lib/QtMultimedia.framework/Headers" -F"$qt_prefix/lib" \
   -framework QtCore -framework QtMultimedia -Wl,-rpath,"$qt_prefix/lib" \
-  -o .local/qt-audio-probe
-exec .local/qt-audio-probe
+  -o .cache/bin/qt-audio-probe
+exec .cache/bin/qt-audio-probe

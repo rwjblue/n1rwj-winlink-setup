@@ -61,7 +61,8 @@ Do not infer RF absence from that label.
 ## Advanced diagnostics
 
 These are maintained, repeatable diagnostics; normal operation needs only
-the commands in the README.
+the commands in the README. They are hidden from the default task list but
+remain directly runnable (or visible with `mise tasks ls --local --hidden`).
 
 ```sh
 mise run check
@@ -93,6 +94,21 @@ mise run tx-test -- --execute --approved-transmit --antenna-confirmed
 Use this only within the operator's RF authorization. Normal live unkeying
 has been observed; deliberate interrupted-client RF tests remain unverified.
 See [STATUS](STATUS.md) for the exact evidence boundaries.
+
+## Artifact cleanup
+
+Run `mise run stop`, then `mise run clean`. Cleanup holds the station lock
+and refuses active control ports. It moves `.local` diagnostics into a private
+timestamped directory under
+`~/Library/Application Support/n1rwj-winlink-setup/archives`; each archive has
+an index of original paths. Earlier channel surveys, HTML captures,
+receive recordings, telemetry and logs are archived there.
+
+The entire `.local/pat` directory is retained, including messages, forms,
+configuration and RMS caches. `.venv` and `.cache` are also retained: Kestrel
+uses the cached hfmodem source as an editable installation. The Qt probe and
+Ruff cache now build under `.cache`, rather than cluttering runtime data or
+the repository root. Nothing from these generated directories belongs in Git.
 
 ## Rollback
 

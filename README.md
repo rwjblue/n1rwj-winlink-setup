@@ -124,3 +124,10 @@ home paths, refresh mise's shell environment or use `mise run pat -- …`.
 `mise run check` tests local configuration and interlocks without RF. Advanced
 audio, codec and simulated-PTT diagnostics are in [SETUP](docs/SETUP.md).
 The same document explains preference backups and rollback.
+
+`mise tasks ls --local` lists the everyday tasks. After stopping the station,
+`mise run clean` moves logs, recordings and loose test artifacts into a private
+timestamped archive under
+`~/Library/Application Support/n1rwj-winlink-setup/archives`. It preserves
+`.local/pat` (including mail), dependency caches and `.venv`, and refuses
+cleanup while station controls are active. No archived evidence is deleted.

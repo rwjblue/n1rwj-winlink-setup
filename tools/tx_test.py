@@ -80,7 +80,7 @@ def main():
         )
     if (LOCAL / "station.json").exists():
         raise SystemExit(
-            "Stop the normal station before the standalone dummy-load test"
+            "Stop the normal station before the standalone transmit test"
         )
     for port in (cfg["cat_guard_port"], cfg["rigctld_port"], 8300, 8301):
         with socket.socket() as check:

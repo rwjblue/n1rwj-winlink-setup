@@ -45,7 +45,7 @@ def main():
         return
     cfg = config()
     devices = json.loads(
-        subprocess.check_output([str(ROOT / ".local/qt-audio-probe")], text=True)
+        subprocess.check_output([str(ROOT / ".cache/bin/qt-audio-probe")], text=True)
     )
     settings = {}
     for key, name, is_input in [

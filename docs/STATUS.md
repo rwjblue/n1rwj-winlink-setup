@@ -19,7 +19,7 @@ QK4 was reused rather than rebuilt or replaced.
 | Pat/Kestrel | Pat reports `VARA modem (4.9.0.KestrelOpen) initialized`; HTTP status lists `varahf`. Both TCP ports attached. | `mise run start`, `mise run doctor` |
 | CAT reads | Hamlib K4 model 2047 reads frequency, mode, bandwidth and PTT through guarded QK4 CAT. | `mise run doctor` |
 | Pat frequency selection | Pat QSY set 14.1015 MHz USB/2800 Hz; readback matched. Original 14.0123 MHz CW/400 Hz was restored and PTT remained off. | `mise run receive-check` |
-| Native power setting | `PC050L` read back as 5.0 W; original `PC075H` was restored. TQ0 was verified before, during and after; no audio or key-up generated. | Controlled native CAT check; `.local/logs/power-check.log` |
+| Native power setting | `PC050L` read back as 5.0 W; original `PC075H` was restored. TQ0 was verified before, during and after; no audio or key-up generated. | Controlled native CAT check; archived `logs/power-check.log` |
 | Live RX | Ten seconds of EM0/SL0 K4 audio captured through QK4/Loopback at 48 kHz. Main RMS -35.99 dBFS, peak -16.21 dBFS, no clipped samples; right/sub channel silent. | `mise run receive-check` |
 | Exact QK4 format | Qt accepts 12 kHz stereo Float32; QK4 log confirms it opened `K4 RX to WSJT-X` with that format. | `mise run qt-audio-probe` and app logs |
 | RX cable conversion | 12->48 kHz chirp, gain 0.999333, residual SNR 63.0 dB, estimated latency 16.02 ms, no stream errors. QK4 was disconnected for the injected cable signal. | `mise run audio -- cable --direction rx` |
@@ -53,9 +53,11 @@ mise run codec-bench
   .cache/upstream/hfmodem/packages/hfmodem/hfmodem/tests/kestrel/test_bw2300_roundtrip.py
 ```
 
-Generated evidence is local and ignored: `.local/logs`,
-`.local/receive-raw.wav`, `.local/radio-before-receive-test.json`.
-QK4 preference backups live in the user's Library outside the repository.
+Generated evidence remains private. The initial test artifacts were moved
+intact to `~/Library/Application Support/n1rwj-winlink-setup/archives/20261028T235918620272Z/.local`.
+That includes `logs`, `receive-raw.wav` and `radio-before-receive-test.json`.
+New runs write to the usual ignored `.local` paths. QK4 preference backups
+remain under the adjacent `backups` directory outside the repository.
 
 ## Remaining gates
 
@@ -102,8 +104,8 @@ Evidence from QK4 and the live CAT stream:
   with median 0.462 s / maximum 0.569 s over 17 bursts. This combines state
   caching/polling and radio/audio delay; it is not calibrated RF turnaround.
 
-Evidence is in ignored .local/logs/first-rf-telemetry.jsonl, pat.log,
-kestrel.log and the archived QK4 audio log. The trial preceded automatic
+Evidence is in the archive's `.local/logs/first-rf-telemetry.jsonl`,
+`kestrel.log` and QK4 audio log. The trial preceded automatic
 RF-session receive recording, so its RX waveform was not saved. Metering
 establishes RF output and key/unkey; no independent receiver has decoded the
 transmitted waveform.

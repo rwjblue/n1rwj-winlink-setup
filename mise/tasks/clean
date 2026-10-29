@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Archive stopped-station logs and test artifacts; preserve mailbox and dependencies"
+set -euo pipefail
+exec .venv/bin/python tools/clean.py

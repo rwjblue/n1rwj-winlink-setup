@@ -6,3 +6,5 @@ config/station.local.toml
 __pycache__/
 *.pyc
 .DS_Store
+.ruff_cache/
+.pytest_cache/

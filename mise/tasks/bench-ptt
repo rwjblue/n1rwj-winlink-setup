@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 #MISE description="Test actual Pat/Hamlib PTT against a simulated K4 (no RF)"
+#MISE hide=true
 set -euo pipefail
 exec .venv/bin/python tools/bench_ptt.py
