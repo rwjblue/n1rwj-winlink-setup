@@ -301,3 +301,14 @@ Vail-session logs, receive recordings and loose diagnostics were archived
 intact under `~/Library/Application Support/n1rwj-winlink-setup/archives/20261029T020717962501Z/.local`.
 References to Vail `.local` evidence above now refer to that archive. Mailbox,
 forms, RMS cache, generated configuration, `.env` and dependencies are retained.
+
+## Selectable ARDOP (2026-10-29)
+
+ARDOP/Besra is available with `mise run start --modem ardop`; VARA remains
+the default and stop/start is required to switch. Offline waveform, interlock,
+supervisor and real Pat/Hamlib simulated-K4 checks pass for the new path.
+No live station was started or stopped during this implementation, and no
+RF was transmitted. ARDOP audio routing/drive, active-over shutdown timing,
+gateway interoperability and mail exchange await hardware validation.
+See [ARDOP operation and verification](ARDOP.md).
+

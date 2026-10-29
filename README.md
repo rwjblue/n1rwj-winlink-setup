@@ -1,7 +1,8 @@
 # N1RWJ remote HF Winlink
 
 **Pat** is the Winlink mail client (`pat` is the command). Kestrel is its
-VARA-compatible software modem; QK4 supplies remote K4 audio and radio control.
+VARA-compatible software modem; Besra provides optional ARDOP. QK4 supplies
+remote K4 audio and radio control. VARA remains the default.
 This repository configures and launches all three interfaces together.
 
 Receive audio, CAT, RF output and normal unkeying are verified on this Mac.
@@ -48,6 +49,22 @@ Normal operation needs only `start` and `stop`; there is no separate transmit
 command or approval flag. While started, the station can transmit to connect
 or answer incoming calls. Set the desired RF power in QK4/K4 before starting.
 
+For ARDOP, stop the station in its owning checkout, then select the modem:
+
+```sh
+mise run start --modem ardop --receive-only  # Initial hardware checks; no transmit
+mise run doctor
+mise run stop
+mise run start --modem ardop                 # Operator use; enables transmission
+```
+
+Choose **ARDOP** in Pat's Connect form and use a current ARDOP RMS listing
+(`mise run pat rmslist --mode ardop --band 20m`). Supported bandwidths are
+200/500/1000/2000 **MAX**; FORCED is rejected. Stop/start to switch modems;
+`mise run start` selects VARA again. Only the selected modem opens audio and
+host ports. Status and doctor report the selection. ARDOP hardware audio,
+RF and gateway transfer remain unverified; see [ARDOP operation and validation](docs/ARDOP.md).
+
 Use the project launcher for other Pat commands:
 
 ```sh
@@ -67,7 +84,7 @@ Pat command keeps its usual home-directory behavior.
 | Path | Purpose | In Git? |
 |---|---|---|
 | `config/station.toml` | Callsign, grid, audio devices, CAT/HTTP ports, modem drive and timing | Yes |
-| `config/pat.json` | Pat's VARA, listener, bandwidth and mail preferences | Yes; password blank |
+| `config/pat.json` | Pat's VARA/ARDOP, bandwidth and mail preferences | Yes; password blank |
 | `config/station.local.toml` | Optional overrides for another machine | No; not required here |
 | `.env` | Local Winlink email and password; see `.env.example` for names | No |
 | `.local/pat/config.json` | Generated effective Pat configuration | No; rebuilt automatically |
@@ -114,7 +131,7 @@ this checks loading, not whether Winlink accepts the password.
 
 ## Audio drive
 
-Kestrel reads its Loopback devices and peak drive from `config/station.toml`.
+Both modems read their Loopback devices and peak drive from `config/station.toml`.
 The calibrated pair is **`amplitude = 0.35` and `qk4_mic_gain = 25`**.
 QK4's mic slider is cubic, so these settings must be considered together.
 The real Kestrel BW2300 connect waveform reached ALC 4 on both 40m and 20m
@@ -186,7 +203,7 @@ specify **dial kHz**; the audio centre is 1500 Hz higher. The standalone RF
 diagnostics retain their execution/approval flags. Receive audio is saved
 under `.local/recordings` during transmit-enabled operation.
 
-Pat owns PTT through Hamlib and the CAT guard. Kestrel has no CAT controller.
+Pat owns PTT through Hamlib and the CAT guard. Neither modem has a CAT controller.
 Child failure stops the stack; the guard unkeys on disconnect and limits
 keys to 30 seconds. Direct QK4 controls and unrelated clients remain independent.
 See [source and audio findings](docs/UPSTREAM.md) for details.

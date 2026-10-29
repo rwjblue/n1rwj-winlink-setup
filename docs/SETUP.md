@@ -16,6 +16,12 @@ enter its existing password through QK4. Preview changes at any time with
 | RX | Output: `K4 RX to WSJT-X` | Input: same cable, left/main channel |
 | TX | Input: `WSJT-X TX to K4` | Output: same cable, duplicated mono |
 
+The optional Besra ARDOP adapter uses these same directions at 48 kHz,
+with left/main-channel receive and duplicated stereo transmit. Select it
+with `mise run start --modem ardop`; see [ARDOP](ARDOP.md) for receive-only
+checks and its pending hardware qualification. The 0.35/25 calibration below
+is Kestrel evidence.
+
 Each Loopback cable needs one enabled Pass-Thru source at unity, channel
 1->1 and 2->2, without other sources or monitor feeds. The configure task
 finds devices by name and writes this Mac's actual device IDs; IDs are not
@@ -92,6 +98,7 @@ remain directly runnable (or visible with `mise tasks ls --local --hidden`).
 ```sh
 mise run check
 mise run bench-ptt                    # Actual Pat/Hamlib, simulated radio; no RF/audio
+mise run bench-ptt --modem ardop      # Same bench through Besra's ARDOP host
 mise run codec-bench                  # Offline raw/Opus comparison
 mise run qt-audio-probe               # Exact Qt format support
 mise run audio devices
