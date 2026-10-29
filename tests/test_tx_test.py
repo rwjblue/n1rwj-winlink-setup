@@ -10,12 +10,59 @@ class TransmitPreparation(unittest.TestCase):
     def test_cw_and_real_modem_waveforms_use_the_same_peak_normalization(self):
         import numpy as np
 
-        for signal in ("cw", "vara-connect", "ardop-connect"):
+        for signal in ("cw", "vara-connect", "vara-link-setup", "ardop-connect"):
             with self.subTest(signal=signal):
                 samples = tx_test.test_waveform("N1RWJ", signal, 0.4)
                 self.assertGreater(len(samples), 48000)
                 self.assertTrue(np.isfinite(samples).all())
                 self.assertAlmostEqual(float(np.max(np.abs(samples))), 0.4, places=6)
+
+    def test_link_setup_contains_the_station_identity(self):
+        from hfmodem.kestrel.rx import varahf2300
+        from hfmodem.kestrel.vara import vara_frames
+
+        samples = tx_test.test_waveform("N1RWJ", "vara-link-setup", 0.35)
+        frame = varahf2300.decode_over(samples, 0, len(samples), tries=2, level=3)
+        self.assertTrue(frame.crc_ok)
+        self.assertEqual(vara_frames.caller_from_link_setup(frame.frame_bytes), "N1RWJ")
+
+    def test_link_setup_execution_requires_verified_test_mode_before_any_io(self):
+        for flags in ([], ["--radio-test-mode"]):
+            with (
+                self.subTest(flags=flags),
+                patch(
+                    "sys.argv",
+                    ["tx-test", "--execute", "--signal", "vara-link-setup", *flags],
+                ),
+                patch(
+                    "tx_test.require_radio_test_mode",
+                    side_effect=RuntimeError("test mode absent"),
+                ),
+                patch("socket.create_connection") as connect,
+                patch("sounddevice.OutputStream") as stream,
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises((SystemExit, RuntimeError)),
+            ):
+                tx_test.main()
+            connect.assert_not_called()
+            stream.assert_not_called()
+
+    def test_link_setup_plan_includes_bounded_device_drain_headroom(self):
+        import json
+
+        with (
+            patch(
+                "sys.argv",
+                ["tx-test", "--signal", "vara-link-setup", "--radio-test-mode"],
+            ),
+            patch("socket.create_connection") as connect,
+            contextlib.redirect_stdout(io.StringIO()) as output,
+        ):
+            tx_test.main()
+        plan = json.JSONDecoder().raw_decode(output.getvalue())[0]
+        self.assertEqual(plan["maximum_key_seconds"], 6)
+        connect.assert_not_called()
 
     def test_ardop_waveform_matches_live_modem_before_playback(self):
         import numpy as np

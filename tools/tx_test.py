@@ -8,6 +8,7 @@ This test replaces Pat as the sole PTT owner; never run it beside the station.
 
 import argparse
 import json
+import math
 import re
 import signal
 import socket
@@ -40,6 +41,19 @@ def test_waveform(callsign, kind, peak):
         from hfmodem.kestrel.vara import vara_frames, vara_mfsk
 
         samples = vara_mfsk.synth_burst("N0CALL", vara_frames.connect_request("2300"))
+    elif kind == "vara-link-setup":
+        from hfmodem.kestrel.vara import vara_frames, vara_ofdm
+        from hfmodem.kestrel.tx.varahf2300_tx import VB6Rnd
+
+        samples = vara_ofdm.link_setup_tx(
+            callsign,
+            bw="2300",
+            level=4,
+            ask=6,
+            high_speed=True,
+            lead=VB6Rnd(vara_frames.lead_state(callsign, False, "2300")),
+            compression="TEXT",
+        )
     elif kind == "ardop-connect":
         from hfmodem.besra.arq.session import CONREQ_MAX
         from hfmodem.besra.frame.callsign import pack_callsign
@@ -93,7 +107,9 @@ def main():
     )
     parser.add_argument("--dial-khz", type=float, default=14101.5)
     parser.add_argument(
-        "--signal", choices=("cw", "vara-connect", "ardop-connect"), default="cw"
+        "--signal",
+        choices=("cw", "vara-connect", "vara-link-setup", "ardop-connect"),
+        default="cw",
     )
     parser.add_argument(
         "--audio-peak",
@@ -122,6 +138,25 @@ def main():
         return
     peak = cfg["amplitude"] if args.audio_peak is None else args.audio_peak
     samples = test_waveform(cfg["callsign"], args.signal, peak)
+    # The longer caller-ID burst needs configured lead/tail plus a second for
+    # device drain and CAT completion within the independent key deadline.
+    key_budget = (
+        max(
+            5,
+            math.ceil(
+                len(samples) / 48000
+                + cfg["ptt_lead_seconds"]
+                + cfg["tx_tail_seconds"]
+                + 1
+            ),
+        )
+        if args.signal == "vara-link-setup"
+        else 5
+    )
+    if key_budget > cfg["max_key_seconds"]:
+        raise UserError(
+            "Waveform requires a longer key budget than the station permits"
+        )
     plan = {
         "dial_hz": dial_hz,
         "mode": "DATA-A normal (Hamlib PKTUSB; MD6/DT0)",
@@ -132,11 +167,13 @@ def main():
         if args.signal == "cw"
         else "Besra 2000MAX connect request to N0CALL (off-air)"
         if args.signal == "ardop-connect"
+        else f"Kestrel BW2300 level-4 link-setup identifying {cfg['callsign']} (off-air)"
+        if args.signal == "vara-link-setup"
         else "Kestrel BW2300 connect request to N0CALL (off-air)",
         "signal_seconds": len(samples) / 48000,
         "audio_peak": peak,
         "tx_device": cfg["tx_device"],
-        "maximum_key_seconds": 5,
+        "maximum_key_seconds": key_budget,
         "restore": "frequency, mode and bandwidth after confirmed unkey",
         "requirements": "Verified K4 TX TEST, or explicit RF approval and load confirmation",
         "load": "K4 TX TEST (RF inhibited)"
@@ -227,7 +264,7 @@ def main():
                     "tools/cat_guard.py",
                     "--approved-transmit",
                     "--max-key-seconds",
-                    "5",
+                    str(key_budget),
                 ],
             ),
             (

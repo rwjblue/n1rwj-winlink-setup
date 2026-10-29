@@ -192,6 +192,13 @@ mise run tx-test --execute --radio-test-mode --dial-khz 7101 \
   --signal vara-connect --audio-peak 0.35
 ```
 
+`--signal vara-link-setup` selects the longer BW2300 level-4 OFDM frame
+identifying the configured station, for debugging the stage after a gateway
+answers the initial call. It requires the same positive TX TEST checks. Its
+key deadline includes the waveform, configured lead/tail and one second for
+device drain and CAT completion: six seconds with the current configuration,
+bounded by `max_key_seconds`. It does not start a gateway session.
+
 Overrides require TX TEST. Waveform-specific ALC matters: 0.40 reached ALC 4
 with CW but 5 with the modem waveform, so the chosen modem default is 0.35.
 This qualifies drive at the tested settings, not high-speed OFDM distortion,
