@@ -19,6 +19,7 @@ mise run setup
 mise run config             # Shows N1RWJ / FN41fr and the configuration paths
 mise run pat -- env         # Confirms Pat sees this repo's identity and paths
 # Quit QK4 first; its existing preferences are backed up before changes.
+mise run configure-qk4 -- --dry-run  # Optional preview; safe while QK4 is open
 mise run configure-qk4
 ```
 

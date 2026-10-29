@@ -7,6 +7,9 @@ The saved local radio profile on this Mac is profile **1**. Configure sets
 mono mixing off and sub volume zero. Authentication is preserved. For another
 saved profile, use `mise run configure-qk4 -- --profile 2` while QK4 is closed.
 On a new Mac, create the radio connection in QK4's Server Manager first.
+This Mac's local profile uses `192.168.7.25:9204`, TLS, and identity `N1RWJ`;
+enter its existing password through QK4. Preview changes at any time with
+`mise run configure-qk4 -- --dry-run` (no preferences changed).
 
 | Direction | QK4 device | Kestrel device |
 |---|---|---|
@@ -24,8 +27,9 @@ Qt and the running app were verified. CoreAudio converts RX to Kestrel's
 and a new TCI backend are unnecessary. See [UPSTREAM](UPSTREAM.md) for raw
 versus Opus fidelity and latency measurements.
 
-The main volume on this Mac is 47, mic gain 25 and modem peak drive 0.05.
-RX boost is off. These produced RF near the 5 W setting in the first trial;
+Tracked station settings set QK4 main volume to 47, mic gain to 25 and modem
+peak drive to 0.05. The configure task also disables RX boost and QK4's
+amplifier integration. These produced RF near the 5 W setting in the first trial;
 waveform quality still needs qualification. QK4's microphone capture opened
 successfully on PTT. Allow macOS microphone access for virtual-device capture
 if prompted. System audio defaults were not changed.

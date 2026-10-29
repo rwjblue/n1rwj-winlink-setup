@@ -13,6 +13,9 @@ def config(root=None):
         if overrides.keys() - values.keys():
             raise ValueError("Unknown station configuration keys")
         values.update(overrides)
+    for key in ("qk4_rx_volume", "qk4_mic_gain"):
+        if type(values[key]) is not int or not 0 <= values[key] <= 100:
+            raise ValueError(f"{key} must be an integer from 0 to 100")
     for key in ("amplitude", "ptt_lead_seconds", "tx_tail_seconds", "max_key_seconds"):
         value = values[key]
         upper = {
