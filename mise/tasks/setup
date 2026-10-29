@@ -6,4 +6,5 @@ mise install
 python tools/bootstrap.py
 uv venv --allow-existing --python "$(mise which python)" .venv
 uv pip sync --python .venv/bin/python requirements.lock
+.venv/bin/python tools/build_pat.py
 .venv/bin/python tools/pat_config.py

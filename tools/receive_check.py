@@ -17,7 +17,7 @@ def qsy(khz):
         data=json.dumps({"transport": "varahf", "freq": khz}).encode(),
         headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(request, timeout=5) as response:
+    with urllib.request.urlopen(request, timeout=35) as response:
         return json.load(response)
 
 

@@ -68,6 +68,7 @@ class ProjectPatConfiguration(unittest.TestCase):
                 {
                     "PAT_MYCALL": "WRONG",
                     "PAT_HAMLIB_RIGS_qk4_ADDRESS": "elsewhere:9299",
+                    "PAT_STATION_QSY_HOOK": "/elsewhere/untrusted-hook",
                     "PAT_SECURE_LOGIN_PASSWORD": "test-only-placeholder",
                     "XDG_DATA_HOME": "/elsewhere",
                 },
@@ -76,9 +77,20 @@ class ProjectPatConfiguration(unittest.TestCase):
             env = pat_config.pat_environment()
             self.assertNotIn("PAT_MYCALL", env)
             self.assertNotIn("PAT_HAMLIB_RIGS_qk4_ADDRESS", env)
+            self.assertEqual(env["PAT_STATION_QSY_HOOK"], str(ROOT / "bin/pat-qsy"))
             self.assertEqual(env["PAT_SECURE_LOGIN_PASSWORD"], "test-only-placeholder")
             self.assertEqual(env["XDG_DATA_HOME"], str(ROOT / ".local"))
             self.assertEqual(os.environ["XDG_DATA_HOME"], "/elsewhere")
+
+    def test_launcher_always_uses_the_station_pat_build(self):
+        with (
+            patch(
+                "pat_config.ensure_pat", return_value=ROOT / ".cache/pat-station/pat"
+            ),
+            patch("pat_config.configure", return_value=ROOT / ".local/pat/config.json"),
+        ):
+            args = pat_config.pat_args()
+        self.assertEqual(args[0], str(ROOT / ".cache/pat-station/pat"))
 
 
 class WinlinkCredentials(unittest.TestCase):

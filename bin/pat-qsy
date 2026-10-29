@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+station_root="$(cd "$(dirname "$0")/.." && pwd -P)"
+exec "$station_root/.venv/bin/python" "$station_root/tools/pat_qsy.py" "$@"

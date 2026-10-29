@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from qk4_cat import (
     native_power,
     operating_state,
+    prepare_data_a,
     restore_mode,
     select_data_a,
     wait_for_receive,
@@ -12,6 +13,44 @@ from qk4_cat import (
 
 
 class RadioReadback(unittest.TestCase):
+    def test_qsy_must_reach_its_target_before_changing_mode(self):
+        state = {"FA": "00014101500", "TQ": "0"}
+        with (
+            patch("qk4_cat.operating_state", return_value=state),
+            patch("qk4_cat.select_data_a") as select,
+            patch("qk4_cat.time.monotonic", side_effect=itertools.count(0, 0.1)),
+            patch("qk4_cat.time.sleep"),
+            self.assertRaisesRegex(RuntimeError, "did not settle"),
+        ):
+            prepare_data_a(7100000)
+        select.assert_not_called()
+
+    def test_qsy_rechecks_frequency_after_mode_and_filter_settle(self):
+        wanted = {"FA": "00007100000", "MD": "6", "DT": "0", "BW": "0280", "TQ": "0"}
+        state = dict(wanted)
+
+        def select():
+            state["FA"] = "00014101500"
+            return wanted
+
+        with (
+            patch("qk4_cat.operating_state", side_effect=lambda: state),
+            patch("qk4_cat.select_data_a", side_effect=select),
+            patch("qk4_cat.time.monotonic", side_effect=itertools.count(0, 0.1)),
+            patch("qk4_cat.time.sleep"),
+            self.assertRaisesRegex(RuntimeError, "did not settle"),
+        ):
+            prepare_data_a(7100000)
+
+    def test_qsy_preparation_refuses_a_keyed_radio(self):
+        with (
+            patch("qk4_cat.operating_state", return_value={"TQ": "1"}),
+            patch("qk4_cat.select_data_a") as select,
+            self.assertRaisesRegex(RuntimeError, "keyed"),
+        ):
+            prepare_data_a(7100000)
+        select.assert_not_called()
+
     def test_unkey_readback_polls_past_initial_transmit_state(self):
         cat = MagicMock()
         cat.recv.side_effect = [b"TQ1;", b"TQ", b"0;"]

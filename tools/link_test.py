@@ -70,7 +70,7 @@ def tuned_frequency(khz):
     )
     hz = round(khz * 1000)
     try:
-        api("qsy", json.dumps({"transport": "varahf", "freq": khz}).encode(), timeout=6)
+        api("qsy", json.dumps({"transport": "varahf", "freq": khz}).encode(), timeout=35)
         select_data_a()  # A band change can recall a different mode/filter.
         require_frequency(hz, settle_seconds=5, stable_seconds=1)
         print(

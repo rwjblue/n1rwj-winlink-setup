@@ -70,6 +70,14 @@ def select_data_a():
         return _wait_mode(expected)
 
 
+def prepare_data_a(hz):
+    """Wait for a Pat tune, then select and verify DATA-A after band recall."""
+    frequency = {"FA": f"{int(hz):011d}"}
+    _wait_mode(frequency)
+    selected = select_data_a()
+    return _wait_mode(frequency | {key: selected[key] for key in ("MD", "DT", "BW")})
+
+
 def restore_mode(state):
     """Restore exact native mode/submode/filter after receive is confirmed."""
     expected = {key: state[key] for key in ("MD", "BW")}

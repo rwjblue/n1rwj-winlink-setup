@@ -5,10 +5,10 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 
 from dotenv import dotenv_values
 
+from build_pat import ensure_pat
 from cli import ConfigError, run_cli
 from station_config import ROOT, config
 
@@ -59,16 +59,8 @@ def configure(root=None):
 
 
 def pat_args(log_name="pat-cli"):
-    try:
-        # `which pat` on PATH now finds our launcher; mise resolves the pinned
-        # upstream binary directly, so starting the supervisor cannot recurse.
-        binary = subprocess.check_output(
-            ["mise", "which", "pat"], cwd=ROOT, text=True
-        ).strip()
-    except (OSError, subprocess.CalledProcessError) as error:
-        raise SystemExit("Pat is not installed; run mise run setup") from error
     return [
-        binary,
+        str(ensure_pat()),
         "--config",
         str(configure()),
         "--mbox",
@@ -124,6 +116,8 @@ def pat_environment():
     for kind in ("CONFIG", "DATA", "STATE"):
         env[f"XDG_{kind}_HOME"] = str(ROOT / ".local")
     env["XDG_CACHE_HOME"] = str(ROOT / ".cache")
+    # Only our repository hook may run inside the station Pat process.
+    env["PAT_STATION_QSY_HOOK"] = str(ROOT / "bin/pat-qsy")
     return env
 
 
