@@ -29,7 +29,7 @@ def port_open(port):
         return False
 
 
-def run_stack(transmit=False):
+def run_stack(transmit=False, diagnostics=False):
     cfg = config()
     pat_env = pat_environment()
     verify_audio_devices()
@@ -168,7 +168,12 @@ def run_stack(transmit=False):
             )
             spawn(
                 "kestrel",
-                [sys.executable, "tools/kestrel.py", *flags],
+                [
+                    sys.executable,
+                    "tools/kestrel.py",
+                    *flags,
+                    *(["--diagnostics"] if diagnostics else []),
+                ],
                 8300,
                 "Kestrel ready",
             )
@@ -188,6 +193,7 @@ def run_stack(transmit=False):
                     {
                         "pid": os.getpid(),
                         "transmit": transmit,
+                        "diagnostics": diagnostics,
                         "children": {n: p.pid for n, p in children},
                     },
                     indent=2,
@@ -229,6 +235,11 @@ def main():
     parser.add_argument("command", choices=["start", "stop", "status"])
     parser.add_argument("--background", action="store_true")
     parser.add_argument(
+        "--diagnostics",
+        action="store_true",
+        help="Record Kestrel playback sources and detailed host timing",
+    )
+    parser.add_argument(
         "--receive-only",
         action="store_true",
         help="Block RF connections, keying and transmit audio",
@@ -255,6 +266,8 @@ def main():
     elif args.background:
         (LOCAL / "logs").mkdir(parents=True, exist_ok=True)
         flags = ["--receive-only"] if args.receive_only else []
+        if args.diagnostics:
+            flags.append("--diagnostics")
         with (LOCAL / "logs/supervisor.log").open("a") as log:
             offset = log.tell()
             process = subprocess.Popen(
@@ -296,7 +309,8 @@ def main():
             offset,
         )
     else:
-        run_stack(transmit=not args.receive_only)
+        options = {"diagnostics": True} if args.diagnostics else {}
+        run_stack(transmit=not args.receive_only, **options)
 
 
 if __name__ == "__main__":

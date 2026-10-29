@@ -9,6 +9,7 @@ import sys
 import time
 
 from cli import run_cli
+from burst_capture import BurstCapture
 
 from station_config import ROOT, config
 
@@ -101,7 +102,7 @@ class WinlinkRuntime(AudioHostRuntime):
 
 
 class StationAudio(AudioVaraIO):
-    def __init__(self, cfg, transmit):
+    def __init__(self, cfg, transmit, diagnostics=False):
         record = None
         if transmit:
             folder = ROOT / ".local/recordings"
@@ -116,7 +117,13 @@ class StationAudio(AudioVaraIO):
             cfg["amplitude"],
             tx_tail=cfg["tx_tail_seconds"],
             record=record,
+            trace_timing=diagnostics,
         )
+        self.capture = None
+        if diagnostics:
+            stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%S%fZ")
+            self.capture = BurstCapture(ROOT / ".local/recordings" / f"kestrel-{stamp}")
+            print(f"Kestrel diagnostics: {self.capture.folder}", flush=True)
         self.transmit = transmit
         self.lead = cfg["ptt_lead_seconds"]
         self.pending_id = False
@@ -129,25 +136,54 @@ class StationAudio(AudioVaraIO):
     def key(self, on):
         if on and not self.transmit:
             raise PermissionError("Receive-only: modem key-up refused")
+        if self.capture is not None:
+            self.capture.emit("ptt_notification", on=on, rx_sample=self.samples)
         # No CAT here: Pat alone handles PTT notifications through Hamlib.
         return super().key(on)
 
     def tx(self, samples, *args, **kwargs):
         if not self.transmit:
             raise PermissionError("Receive-only: audio transmission refused")
+        capture = self.capture
+        burst = self._tx_event_seq + 1
+        if capture is not None:
+            drive = kwargs.get("drive", args[0] if args else None)
+            capture.source(
+                burst,
+                samples,
+                self.amp if drive is None else drive,
+                identification=kwargs.get("identification", False),
+                metadata=dict(self._tx_metadata),
+                rx_sample=self.samples,
+            )
         time.sleep(self.lead)
-        result = super().tx(samples, *args, **kwargs)
+        try:
+            result = super().tx(samples, *args, **kwargs)
+        except BaseException:
+            if capture is not None:
+                capture.emit("playback_failed", burst=burst, rx_sample=self.samples)
+            raise
+        if capture is not None:
+            capture.emit("playback_returned", burst=burst, rx_sample=self.samples)
         if not kwargs.get("identification", False):
             self.pending_id = True
         return result
+
+    def stop(self):
+        try:
+            super().stop()
+        finally:
+            if self.capture is not None:
+                print(f"Kestrel capture result: {self.capture.close()}", flush=True)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--approved-transmit", action="store_true")
+    parser.add_argument("--diagnostics", action="store_true")
     args = parser.parse_args()
     cfg = config()
-    audio = StationAudio(cfg, args.approved_transmit)
+    audio = StationAudio(cfg, args.approved_transmit, diagnostics=args.diagnostics)
     runtime = WinlinkRuntime(audio)
     faulthandler.register(signal.SIGUSR1, all_threads=True)
 

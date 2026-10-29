@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Start the station for HF mail (transmit-enabled, background)"
 #USAGE flag "--receive-only" help="Block RF connections, keying and transmit audio"
+#USAGE flag "--diagnostics" help="Record Kestrel playback sources and detailed host timing"
 set -euo pipefail
 exec .venv/bin/python tools/station.py start --background "$@"

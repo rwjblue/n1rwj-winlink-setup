@@ -59,6 +59,7 @@ class Guard:
             async def commands():
                 nonlocal keyed_at
                 while frame := await reader.readuntil(b";"):
+                    received_at = time.monotonic()
                     command = frame[:-1].strip()
                     permit = allowed(command, self.transmit)
                     if not permit:
@@ -66,7 +67,10 @@ class Guard:
                         writer.write(b"?;")
                         await writer.drain()
                         continue
-                    print(f"CAT {command.decode()}", flush=True)
+                    print(
+                        f"CAT {command.decode()} received_mono_s={received_at:.9f}",
+                        flush=True,
+                    )
                     if command == b"TX":
                         if keyed_at is None:
                             keyed_at = time.monotonic()
