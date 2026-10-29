@@ -1,12 +1,14 @@
 """Prepare, or explicitly execute, one short identified transmit test.
 
-Default is a pure dry run. Execution requires separate human approval in chat
-and confirmation of the selected dummy load or operator-approved antenna.
+Default is a pure dry run. RF execution requires human approval and load
+confirmation. The off-air variant requires positive K4 TX TEST readback in
+QK4 Vail, with the radio's RF output inhibited.
 This test replaces Pat as the sole PTT owner; never run it beside the station.
 """
 
 import argparse
 import json
+import re
 import signal
 import socket
 import subprocess
@@ -29,11 +31,26 @@ from qk4_cat import (
 )
 from station import LOCAL
 from station_config import ROOT, config
+from qk4_test_mode import require_radio_test_mode
 
 
 def emergency_unkey():
     wait_for_receive(request_rx=True)
     print("QK4 reports TQ0 (radio receive)", flush=True)
+
+
+def verify_off_air_telemetry(rows):
+    replies = "".join(row.get("reply", "") for row in rows)
+    meters = re.findall(r"TM\d{3}\d{3}(\d{3})\d{3};", replies)
+    if "TQ1;" not in replies or not meters:
+        raise RuntimeError("Off-air check lacks logical TX or forward-power telemetry")
+    if any(int(value) for value in meters):
+        raise RuntimeError("Nonzero forward power during K4 TX TEST; inspect telemetry")
+    return {
+        "logical_tx_observed": True,
+        "forward_meter_samples": len(meters),
+        "forward_power_zero": True,
+    }
 
 
 def main():
@@ -42,6 +59,11 @@ def main():
     parser.add_argument("--approved-transmit", action="store_true")
     parser.add_argument("--dummy-load-confirmed", action="store_true")
     parser.add_argument("--antenna-confirmed", action="store_true")
+    parser.add_argument(
+        "--radio-test-mode",
+        action="store_true",
+        help="Off-air: requires the K4 TX TEST indicator, verified through QK4 Vail",
+    )
     parser.add_argument("--dial-khz", type=float, default=14101.5)
     parser.add_argument("--amplifier-bypassed", action="store_true")
     parser.add_argument(
@@ -58,7 +80,7 @@ def main():
     plan = {
         "dial_hz": dial_hz,
         "mode": "DATA-A normal (Hamlib PKTUSB; MD6/DT0)",
-        "filter_hz": 2800,
+        "minimum_rx_filter_hz": 2800,
         "power": "radio's current setting (unchanged)",
         "tone_hz": 1500,
         "signal": f"CW {cfg['callsign']} at 20 WPM",
@@ -67,14 +89,20 @@ def main():
         "tx_device": cfg["tx_device"],
         "maximum_key_seconds": 5,
         "restore": "frequency, mode and bandwidth after confirmed unkey",
-        "requirements": "Explicit RF approval and confirmation of antenna or dummy load",
-        "load": "operator-approved antenna" if args.antenna_confirmed else "dummy load",
+        "requirements": "Verified K4 TX TEST, or explicit RF approval and load confirmation",
+        "load": "K4 TX TEST (RF inhibited)"
+        if args.radio_test_mode
+        else "operator-approved antenna"
+        if args.antenna_confirmed
+        else "dummy load",
     }
     print(json.dumps(plan, indent=2), flush=True)
     if not args.execute:
         print("DRY RUN: no devices or CAT connections opened")
         return
-    if not (
+    if args.radio_test_mode:
+        require_radio_test_mode()
+    elif not (
         args.approved_transmit
         and (
             args.antenna_confirmed
@@ -115,6 +143,7 @@ def main():
     telemetry = []
     telemetry_stop = threading.Event()
     monitor = None
+    completed = False
 
     def observe_radio():
         try:
@@ -206,7 +235,7 @@ def main():
             or readback[-1] != "0"
         ):
             raise RuntimeError(f"Test settings did not read back correctly: {readback}")
-        if args.antenna_confirmed:
+        if args.antenna_confirmed and not args.radio_test_mode:
             time.sleep(2)  # Discard old-frequency receiver/sink buffers.
             channel = sd.rec(
                 5 * 48000,
@@ -238,6 +267,8 @@ def main():
             audio.write(np.zeros((4800, 2), dtype="float32"))
             monitor = threading.Thread(target=observe_radio, daemon=True)
             monitor.start()
+            if args.radio_test_mode:
+                require_radio_test_mode()  # Recheck after tuning, immediately before PTT.
             rig("T", "1")
             time.sleep(cfg["ptt_lead_seconds"])
             audio.write(stereo)
@@ -246,6 +277,7 @@ def main():
             )
         rig("T", "0")
         emergency_unkey()
+        completed = True
         print(
             "Identification completed; inspect telemetry and verify RF power/ALC before declaring success"
         )
@@ -269,6 +301,12 @@ def main():
                 if native_snapshot:
                     restore_mode(native_snapshot)
                 print("Restored radio settings:", rig("f", "m", "t"))
+            if args.radio_test_mode and completed:
+                require_radio_test_mode()
+                print(
+                    "Off-air DATA-A result:",
+                    json.dumps(verify_off_air_telemetry(telemetry)),
+                )
         finally:
             for process in processes:
                 if process.poll() is None:

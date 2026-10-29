@@ -1,16 +1,16 @@
 # Station evidence — 2026-10-28
 
-**Current state: testing resumed with the operator's QK4 Vail build. RF output
-and normal unkeying are observed, but no RMS link or HF message transfer is
-claimed. Cross-band CAT tuning and delayed cancellation exposed gaps; stable
-tuning gates and independent RF-stack deadline shutdown are now implemented.
-The operator has taken over further connectivity testing; the stack is stopped.
-Project `.env` credentials are loaded, but authentication remains untested.**
+**Current state: DATA-A normal is selected and the station is running
+receive-only with QK4 Vail. Live receive, local TX cable fidelity, and outgoing
+network audio with the K4 RF output inhibited in TX TEST have been verified.
+Earlier RF trials used USB. No DATA-A on-air RMS link or HF message transfer
+is claimed. Project `.env` credentials are loaded, but authentication remains
+untested. The operator is continuing gateway connectivity testing.**
 
 Test environment: Apple Silicon arm64 macOS; mise Python 3.14.4, Go 1.26.2,
 uv 0.11.7; Pat v1.0.0 at the pinned source revision; hfmodem/hfhost/creance
-0.3.4; installed QK4 `0.7.0-dev.1d7de138`; Homebrew Hamlib 4.7.2 and Qt 6.11.2.
-QK4 was reused rather than rebuilt or replaced.
+0.3.4; QK4 Vail `0.8.0-beta.1.7-vail` (earlier trials used
+`0.7.0-dev.1d7de138`); Homebrew Hamlib 4.7.2 and Qt 6.11.2. QK4 was reused.
 
 ## Verified
 
@@ -20,16 +20,46 @@ QK4 was reused rather than rebuilt or replaced.
 | Project configuration | Actual Pat resolves N1RWJ/FN41fr and local config/mailbox paths from a fresh copy of checked-in files, with reused installed runtimes and no ignored configuration. Both mise task and repo PATH launcher work. | `mise run config`, `mise run pat -- env`, `mise exec -- pat env` |
 | Pat/Kestrel | Pat reports `VARA modem (4.9.0.KestrelOpen) initialized`; HTTP status lists `varahf`. Both TCP ports attached. | `mise run start`, `mise run doctor` |
 | CAT reads | Hamlib K4 model 2047 reads frequency, mode, bandwidth and PTT through guarded QK4 CAT. | `mise run doctor` |
-| Pat frequency selection | Pat QSY set 14.1015 MHz USB/2800 Hz; readback matched. Original 14.0123 MHz CW/400 Hz was restored and PTT remained off. | `mise run receive-check` |
+| Pat frequency selection | Pat QSY at 7.055 MHz DATA-A normal, 3 kHz RX; native MD6/DT0/BW0300 and TQ0 matched before/after receive capture. | `mise run receive-check` |
 | Native power setting | `PC050L` read back as 5.0 W; original `PC075H` was restored. TQ0 was verified before, during and after; no audio or key-up generated. | Controlled native CAT check; archived `logs/power-check.log` |
-| Live RX | Ten seconds of EM0/SL0 K4 audio captured through QK4/Loopback at 48 kHz. Main RMS -35.99 dBFS, peak -16.21 dBFS, no clipped samples; right/sub channel silent. | `mise run receive-check` |
+| Live RX | Ten seconds of DATA-A EM0/SL0 K4 audio through QK4/Loopback at 48 kHz. Main RMS -34.84 dBFS, peak -19.60 dBFS, no clipped samples. | `mise run receive-check` |
 | Exact QK4 format | Qt accepts 12 kHz stereo Float32; QK4 log confirms it opened `K4 RX to WSJT-X` with that format. | `mise run qt-audio-probe` and app logs |
 | RX cable conversion | 12->48 kHz chirp, gain 0.999333, residual SNR 63.0 dB, estimated latency 16.02 ms, no stream errors. QK4 was disconnected for the injected cable signal. | `mise run audio -- cable --direction rx` |
-| TX cable | 48 kHz chirp, gain 1.0, residual SNR >130 dB, estimated latency 16.0 ms, no stream errors. QK4 gate explicitly closed. | `mise run audio -- cable --direction tx` |
-| Pat/Hamlib PTT bench | Actual Pat and Hamlib produced TX/RX/TX/RX on a simulated K4. Key notification to CAT ~1.33 ms; unkey ~0.70 ms. Missing OFF forced unkey at the bench's 0.5 s deadline. No audio/radio opened. | `mise run bench-ptt` |
-| Interlocks/configuration | Thirty-two local tests pass, including credential loading without JSON persistence, identity checks, SIGTERM with a connected CAT client, transient tune rejection, live-dial cancellation detection and receive-only policy/deadman. | `mise run check` |
+| TX cable | 48 kHz chirp, gain 1.0, residual SNR 132.41 dB, estimated latency 16.0 ms, no stream errors. QK4 gate closed; receive readback before/after. | `mise run audio -- cable --direction tx` |
+| DATA-A outgoing audio | In confirmed K4 TX TEST, QK4 captured the TX cable at 48 kHz mono and converted 4:1 to 12 kHz. A 3.78-second CW ID produced 50 logical-TX samples; all 67 forward-meter samples were zero. TQ0 and DATA-A/3 kHz were restored; PC050H was unchanged. | `mise run tx-test -- --execute --radio-test-mode --dial-khz 7055` |
+| Pat/Hamlib PTT bench | Actual Hamlib selected PKTUSB/2800, producing MD6/DT0 through the guard. Pat then produced TX/RX/TX/RX on a simulated K4. Key ~1.19 ms; unkey ~1.03 ms; 0.5 s deadman unkey passed. No real radio/audio opened. | `mise run bench-ptt` |
+| Interlocks/configuration | 42 local tests pass, covering credentials, DATA-A/submode/filter validation, filter recall ordering, routing drift, positive TX TEST confirmation, zero-forward-power telemetry, cancellation and independent unkey. | `mise run check` |
 | Modem regression | 37 upstream host lifecycle and BW2300 codec tests passed. Synthetic payload recovery is not independent RF evidence. | Commands below |
 | Failure shutdown | SIGKILL to the live receive-only Kestrel process caused all five station listener ports to close; normal restart reattached Pat. | Supervisor log; deliberate manual fault injection |
+
+## DATA-A audio verification
+
+During the DATA-A change, the first receive capture was silent. QK4's saved
+speaker selection was the system default and its microphone selection was
+the built-in Mac microphone. Preferences were backed up privately and
+`mise run configure-qk4` restored the named Loopback UIDs. Vail was relaunched
+and reconnected to `K4-SN01967 Local`. Startup and `doctor` now detect this
+saved-routing mismatch; they never print stored radio credentials.
+
+The K4 initially recalled a 2.5 kHz filter after Hamlib's MD/BW/DT sequence.
+The helper now waits for native MD6/DT0, applies BW0280 afterward if necessary,
+and accepts wider filters. Live receive and the subsequent outgoing check
+used the operator-selected 3 kHz filter at 7.055 MHz.
+
+The outgoing test was performed with the K4 in TX TEST, positively observed
+in QK4's VFO indicator before PTT. QK4's permanent TEST caption underneath
+XMIT is excluded from that check. The client opened the correct mic cable,
+the K4 reported logical TX, and the internal forward meter remained zero.
+TX NORM was restored only after TQ0 was confirmed. This verifies the remote
+audio/keying route with RF inhibited; it is not a DATA-A RF or RMS decode test.
+No new gateway attempt or mail transfer was made.
+
+Private evidence: `.local/logs/qk4-data-a.log`,
+`.local/logs/tx-telemetry.json`, `.local/receive-data-a.wav`,
+`.local/radio-before-receive-test.json` and `.local/tx-test-before.json`.
+Preference backups remain under the private `backups` directory described
+below, including `qk4-before-data-a-audio-20261029T025521495976Z.plist` and
+`qk4-20261029T025539764629Z.plist`. Generated logs and audio are ignored by Git.
 
 ## Raw versus Opus diagnostic
 
@@ -180,7 +210,7 @@ child-process regression test proves SIGTERM sends RX and exits with the CAT
 client still connected. Live confirmation of the corrected shutdown timing
 remains pending. Receive recording: `rx-20261029T014034Z.wav` (66 seconds).
 
-## Operator handoff
+## Operator handoff before the DATA-A change
 
 Further RF/gateway attempts were stopped at the operator's request. The
 receive-only station is not running. All station listeners are closed; QK4

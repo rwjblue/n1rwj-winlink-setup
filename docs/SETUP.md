@@ -120,6 +120,23 @@ Use this only within the operator's RF authorization. Normal live unkeying
 has been observed; deliberate interrupted-client RF tests remain unverified.
 See [STATUS](STATUS.md) for the exact evidence boundaries.
 
+For an **off-air** check through QK4 and the K4 network-audio input, stop the
+station and enable the K4's TX TEST mode. Confirm the active TEST indicator
+beside the VFO, rather than the permanent TEST caption under XMIT. Then run:
+
+```sh
+mise run tx-test -- --execute --radio-test-mode --dial-khz 7055
+```
+
+This variant positively checks the radio-reported VFO indicator through
+macOS System Events before preparation and immediately before PTT. It currently
+supports the installed QK4 Vail bundle `com.rwjblue.qk4.vail`; macOS automation
+and accessibility permission may be required. Missing UI confirmation stops
+the check. It requires logical TX and zero forward-meter samples to report
+success. K4 TX TEST inhibits radio RF but still keys downstream gear, as
+described in the programmer's reference. Return to TX NORM only after the
+check has unkeyed. The script does not toggle TX TEST or alter RF power.
+
 ## DATA-A and mode rollback
 
 The K4's [operating manual](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4%20Built-In%20Operating%20Manual%20rev%20C22/K4BuiltInOperatingManualrevC22.html)
@@ -129,17 +146,25 @@ disabled. The [programmer's reference](https://ftp.elecraft.com/K4/Manuals%20Dow
 defines `MD6` as DATA, `MD9` as reverse DATA, and `DT0` as DATA-A.
 
 Startup selects Hamlib `PKTUSB`, waits for stable native mode/submode, then
-widens a narrower RX filter to 2.8 kHz last. Wider operator-selected filters are retained. Hamlib 4.7.2 sends BW before DT; the live K4
-recalled a 2.5 kHz filter after DT0 until the helper reapplied BW0280. A one-second
+widens a narrower RX filter to 2.8 kHz last. Wider operator-selected filters
+are retained. Hamlib 4.7.2 sends BW before DT; the live K4 recalled a 2.5 kHz
+filter after DT0 until the helper reapplied BW0280. A one-second
 stable readback is required. `doctor` checks mode/submode/filter without
 changing them. QK4's CAT server does not return `DW` (DATA TX bandwidth), so
 check that setting on the radio; RX `BW0280` does not prove TX bandwidth.
 
 QK4's microphone stream carries the Loopback TX cable into its existing
 network-audio encoder. Its source selection and PTT gate are independent of
-SSB versus DATA-A. The DATA-A receive test and gate-closed TX cable test do
-not establish RF modulation through the radio in DATA-A; see STATUS for what
-was actually measured. Raw EM0/SL0 and the named Loopback devices are unchanged.
+SSB versus DATA-A. Live receive, the gate-closed TX cable, and outgoing
+network audio with the K4 in TX TEST were verified. These do not establish
+DATA-A RF modulation or RMS decoding; see STATUS for the measurements.
+Raw EM0/SL0 and the named Loopback devices are unchanged.
+
+Startup and `doctor` compare QK4's saved device IDs with Qt's exact compatible
+Loopback devices. If settings drift to system defaults or the built-in mic,
+quit QK4 and run `mise run configure-qk4`; it backs up preferences first.
+Reopen Vail and connect the local profile. Stored settings alone cannot prove
+live audio, which is why the receive and outgoing-path checks are separate.
 
 Each startup saves the previous native settings in
 `.local/logs/radio-before-data-a-*.json`; normal stop leaves DATA-A selected.

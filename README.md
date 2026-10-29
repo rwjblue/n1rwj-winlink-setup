@@ -7,6 +7,7 @@ This repository configures and launches all three interfaces together.
 Receive audio, CAT, RF output and normal unkeying are verified on this Mac.
 **An RMS connection and HF message transfer have not succeeded yet.** Kestrel
 is experimental. See [test results and remaining work](docs/STATUS.md).
+The DATA-A audio path is verified off-air; earlier on-air tests used USB.
 
 ## First setup
 
