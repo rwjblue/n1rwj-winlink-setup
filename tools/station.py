@@ -12,7 +12,7 @@ import subprocess
 import sys
 import time
 
-from cli import UserError, run_cli
+from cli import UserError, log_error, run_cli
 from station_config import ROOT, config
 from qk4_cat import native_power, operating_state, select_data_a
 from pat_config import configure, pat_args, pat_environment
@@ -78,6 +78,7 @@ def run_stack(transmit=False):
         stop.unlink(missing_ok=True)
         state = LOCAL / "station.json"
         children = []
+        child_logs = {}
         handles = []
         stopping = False
 
@@ -97,9 +98,14 @@ def run_stack(transmit=False):
                 args, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, env=env
             )
             children.append((name, process))
+            child_logs[name] = (path, offset)
             for _ in range(300):
-                if any(p.poll() is not None for _, p in children):
-                    raise UserError(f"{name} or a dependency exited; see .local/logs")
+                for child_name, child in children:
+                    if child.poll() is not None:
+                        raise log_error(
+                            f"{child_name} exited ({child.returncode}) during startup.",
+                            *child_logs[child_name],
+                        )
                 if stopping or stop.exists():
                     raise UserError("Startup cancelled")
                 ready = (
@@ -113,7 +119,11 @@ def run_stack(transmit=False):
                     print(f"{name} ready", flush=True)
                     return
                 time.sleep(0.1)
-            raise UserError(f"{name} did not listen on {port}")
+            raise log_error(
+                f"{name} did not become ready on port {port} within 30 seconds.",
+                path,
+                offset,
+            )
 
         try:
             flags = ["--approved-transmit"] if transmit else []
@@ -190,8 +200,9 @@ def run_stack(transmit=False):
             while not stopping and not stop.exists():
                 for name, process in children:
                     if process.poll() is not None:
-                        raise UserError(
-                            f"{name} exited ({process.returncode}); shutting down the station"
+                        raise log_error(
+                            f"{name} exited ({process.returncode}); shutting down the station.",
+                            *child_logs[name],
                         )
                 time.sleep(0.1)
         finally:
@@ -237,11 +248,15 @@ def main():
                 print("Station stopped")
                 return
             time.sleep(0.1)
-        raise SystemExit("Shutdown did not complete; inspect supervisor.log")
+        raise log_error(
+            "Shutdown did not complete within 10 seconds.",
+            LOCAL / "logs/supervisor.log",
+        )
     elif args.background:
         (LOCAL / "logs").mkdir(parents=True, exist_ok=True)
         flags = ["--receive-only"] if args.receive_only else []
         with (LOCAL / "logs/supervisor.log").open("a") as log:
+            offset = log.tell()
             process = subprocess.Popen(
                 [
                     sys.executable,
@@ -257,7 +272,11 @@ def main():
             )
         for _ in range(600):
             if process.poll() is not None:
-                raise SystemExit("Startup failed; inspect .local/logs/supervisor.log")
+                raise log_error(
+                    f"Station startup failed ({process.returncode}).",
+                    LOCAL / "logs/supervisor.log",
+                    offset,
+                )
             state = LOCAL / "station.json"
             if (
                 state.exists()
@@ -271,7 +290,11 @@ def main():
                 )
                 return
             time.sleep(0.1)
-        raise SystemExit("Startup still pending; inspect .local/logs/supervisor.log")
+        raise log_error(
+            "Station startup still pending after 60 seconds.",
+            LOCAL / "logs/supervisor.log",
+            offset,
+        )
     else:
         run_stack(transmit=not args.receive_only)
 

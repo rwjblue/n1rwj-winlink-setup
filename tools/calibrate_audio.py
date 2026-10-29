@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 
-from cli import UserError, run_cli
+from cli import UserError, log_error, run_cli
 from qk4_cat import native_power, operating_state
 from qk4_settings import DOMAIN, verify_audio_devices
 from qk4_test_mode import require_radio_test_mode
@@ -116,7 +116,9 @@ def main():
                 command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT
             )
         if run.returncode:
-            raise UserError(f"Calibration case failed; inspect {case / 'test.log'}")
+            raise log_error(
+                f"Calibration case failed ({run.returncode}).", case / "test.log"
+            )
         for source in ("logs/tx-telemetry.json", "tx-test-before.json"):
             shutil.copy2(ROOT / ".local" / source, case / pathlib.Path(source).name)
         result = {"audio_peak": peak} | summarize(

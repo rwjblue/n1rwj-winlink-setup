@@ -22,7 +22,7 @@ from hfmodem.core import cwid, levels
 from hfmodem.core.busy import is_busy
 from hfmodem.core.occupied import occupied_hz
 
-from cli import UserError, run_cli
+from cli import UserError, log_error, run_cli
 from qk4_cat import (
     native_power,
     operating_state,
@@ -228,13 +228,15 @@ def main():
                 ],
             ),
         ]:
-            log = (LOCAL / "logs" / (name + ".log")).open("a")
+            path = LOCAL / "logs" / (name + ".log")
+            log = path.open("a")
+            offset = log.tell()
             logs.append(log)
             process = subprocess.Popen(command, cwd=ROOT, stdout=log, stderr=log)
             processes.append(process)
             time.sleep(0.5)
             if process.poll() is not None:
-                raise UserError(f"{name} failed; inspect its log")
+                raise log_error(f"{name} exited ({process.returncode}).", path, offset)
         for attempt in range(10):
             try:
                 original = rig("f", "m", "t")

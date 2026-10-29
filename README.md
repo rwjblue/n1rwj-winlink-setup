@@ -197,7 +197,11 @@ the option to return to normal operation.
 
 ## Troubleshooting and maintenance
 
-Start with `mise run doctor`, `.local/logs/supervisor.log` and the child logs.
+Commands report expected configuration and diagnostic errors directly in the
+console without a Python traceback. Background startup failures also include
+recent output from the supervisor or failed dependency. Unexpected Python
+errors keep their tracebacks. Supervisor and child logs remain under
+`.local/logs` for the full history; use `mise run doctor` for station checks.
 For `QK4 saved audio settings differ`, quit QK4, run
 `mise run configure-qk4`, then reopen **QK4 Vail** and connect the local profile.
 The configurator backs up preferences before replacing audio selections.
