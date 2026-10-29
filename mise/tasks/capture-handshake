@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Passively capture RX/TX cables and read-only radio timing (plan by default)"
+#MISE hide=true
+#USAGE flag "--seconds <seconds>" default="30" help="Capture duration, above zero and at most 600 seconds"
+#USAGE flag "--output <directory>" help="New output directory; defaults to private .local/recordings"
+#USAGE flag "--execute" help="Open audio inputs and read-only CAT telemetry; never plays or keys"
+set -euo pipefail
+exec .venv/bin/python tools/handshake_capture.py "$@"

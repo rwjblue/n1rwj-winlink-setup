@@ -260,3 +260,57 @@ Preserve `.local/pat` before removing runtime data: it contains your mailbox
 and downloaded forms. `.cache` and `.venv` can be recreated by setup.
 Shared mise tools, native dependencies, QK4 and Loopback stay installed;
 no driver, system audio default or existing user checkout was replaced.
+
+## Handshake capture and timing
+
+`mise run capture-handshake` prints a plan without opening devices. Its
+execution mode is strictly passive: it opens the **input** side of both
+Loopback cables at 48 kHz stereo and polls only native `TQ;TM;` status queries.
+It does not play audio, tune, attach to Kestrel, or send PTT commands. It can
+run beside the existing station without restarting it:
+
+```sh
+mise run capture-handshake --seconds 30 --execute
+```
+
+The private `.local/recordings/handshake-*/` directory contains `rx.wav` and
+`tx.wav` as PCM32 stereo, per-input `*-timing.jsonl`, `radio.jsonl`, the station
+log additions during capture, and `manifest.json`. The TX recording is the
+Loopback signal **before QK4's mic gain, resampler, network codec and radio**;
+it is not a recording of the radiated signal. An idle capture should have
+silent TX. File/queue failures, stream status flags and incomplete telemetry
+make the result incomplete and return an error; partial evidence is retained.
+Silent RX is reported separately as a routing warning, even if every captured
+buffer and telemetry reply arrived intact. Run `mise run doctor` before
+interpreting a silent recording as a quiet channel.
+
+Each audio block records its capture-frame index, file-frame index, PortAudio
+ADC/current timestamps and a callback-anchored monotonic estimate. Use these
+records to align the two WAVs; their first samples do not share an assumed
+origin. Missing buffers remain explicit. QK4 `TQ` and meter reports are polled
+cached state, **not measured physical PTT or RF edges**. The host timing and
+radio polling resolution cannot establish a precise RF turnaround by themselves.
+
+For a future Kestrel run, `--diagnostics` adds exact normalized Float32 source
+WAVs and an asynchronous event journal under `.local/recordings/kestrel-*/`,
+plus upstream playback/capture-cursor timing in `kestrel.log`. CAT guard lines
+include receipt timestamps on the same machine's monotonic clock. Match the
+source journal's `burst` number to `tx_event.tx_id`, and use the detailed
+`timing` lines to distinguish playback start, playback drain, idle tail and
+PTT notifications. A saved source represents generated playback intent;
+check the playback outcome before claiming it was played. Queue/file errors
+are reported in the source capture's `summary.json` at station shutdown.
+
+A receive-only startup with this instrumentation is:
+
+```sh
+mise run start --receive-only --diagnostics
+```
+
+This still blocks CONNECT, PTT and transmit audio, so it cannot produce a TX
+waveform. The option does not change the station's transmit mode. Enable it
+on a future operator-approved transmit-enabled run when an actual handshake
+capture is needed. Never restart an active station merely to attach the
+passive recorder. RF-inhibited tests through the radio still require the
+separate positive TX TEST checks described above; these capture tools do not
+select TX TEST or certify RF inhibition.

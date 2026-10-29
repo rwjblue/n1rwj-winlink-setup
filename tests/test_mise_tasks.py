@@ -140,6 +140,16 @@ class MiseTaskArguments(unittest.TestCase):
                 ["tools/tx_test.py"],
             ),
             ("tx-test", ["--unkey"], ["tools/tx_test.py"]),
+            (
+                "capture-handshake",
+                ["--seconds", "5", "--output", "capture with spaces", "--execute"],
+                ["tools/handshake_capture.py"],
+            ),
+            (
+                "start",
+                ["--receive-only", "--diagnostics"],
+                ["tools/station.py", "start", "--background"],
+            ),
             ("pat", ["rmslist", "--mode", "varahf", "--band", "20m"], []),
             ("pat", ["--help"], []),
             ("pat", ["--version"], []),
@@ -154,6 +164,7 @@ class MiseTaskArguments(unittest.TestCase):
     def test_task_help_describes_arguments_without_running_station_tools(self):
         for task, flag in (
             ("start", "--receive-only"),
+            ("capture-handshake", "--execute"),
             ("receive-check", "--dial-khz"),
             ("audio", "--direction"),
             ("configure-qk4", "--restore"),
