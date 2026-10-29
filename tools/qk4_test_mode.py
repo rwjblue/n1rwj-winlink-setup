@@ -2,6 +2,8 @@
 
 import subprocess
 
+from cli import UserError
+
 
 def require_radio_test_mode():
     # QK4 does not return TS GET on its CAT server. Its VFO TEST indicator is
@@ -25,6 +27,6 @@ end tell
         ["osascript", "-"], input=script, text=True, timeout=10
     )
     if result.strip() != "true":
-        raise RuntimeError(
+        raise UserError(
             "K4 TX TEST is not confirmed by QK4's VFO indicator; no keying allowed"
         )

@@ -12,6 +12,7 @@ import re
 import signal
 import time
 
+from cli import run_cli
 from station_config import config
 
 
@@ -158,7 +159,7 @@ async def main(args):
         await asyncio.gather(*sessions, return_exceptions=True)
 
 
-if __name__ == "__main__":
+def cli():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--max-key-seconds", type=float, help="Optional shorter deadman interval"
@@ -177,3 +178,7 @@ if __name__ == "__main__":
             "Deadman override must be positive and no longer than the configured maximum"
         )
     asyncio.run(main(args))
+
+
+if __name__ == "__main__":
+    run_cli(cli)

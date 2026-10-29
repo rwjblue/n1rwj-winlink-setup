@@ -4,6 +4,7 @@ import argparse
 import json
 import urllib.request
 
+from cli import UserError, run_cli
 from audio import capture
 from link_test import require_frequency
 from qk4_cat import operating_state, restore_frequency, restore_mode, select_data_a
@@ -52,15 +53,15 @@ def main():
         print(f"Pat QSY verified: {hz} Hz DATA-A normal, RX >=2800 Hz, PTT off")
         result = capture(10, config()["rx_device"], ROOT / ".local/receive-data-a.wav")
         if result["rms_dbfs"][0] <= -100 or result["clipped_samples"]:
-            raise RuntimeError("Main receive audio is silent or clipped")
+            raise UserError("Main receive audio is silent or clipped")
     finally:
         restore_frequency(int(before["FA"]))
         restore_mode(before)
         restored = operating_state()
         print("Restored:", restored)
         if restored != before:
-            raise RuntimeError("Radio restoration readback failed")
+            raise UserError("Radio restoration readback failed")
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

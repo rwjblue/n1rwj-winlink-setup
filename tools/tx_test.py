@@ -22,6 +22,7 @@ from hfmodem.core import cwid, levels
 from hfmodem.core.busy import is_busy
 from hfmodem.core.occupied import occupied_hz
 
+from cli import UserError, run_cli
 from qk4_cat import (
     native_power,
     operating_state,
@@ -54,9 +55,9 @@ def verify_off_air_telemetry(rows):
     replies = "".join(row.get("reply", "") for row in rows)
     meters = re.findall(r"TM\d{3}\d{3}(\d{3})\d{3};", replies)
     if "TQ1;" not in replies or not meters:
-        raise RuntimeError("Off-air check lacks logical TX or forward-power telemetry")
+        raise UserError("Off-air check lacks logical TX or forward-power telemetry")
     if any(int(value) for value in meters):
-        raise RuntimeError("Nonzero forward power during K4 TX TEST; inspect telemetry")
+        raise UserError("Nonzero forward power during K4 TX TEST; inspect telemetry")
     return {
         "logical_tx_observed": True,
         "forward_meter_samples": len(meters),
@@ -233,7 +234,7 @@ def main():
             processes.append(process)
             time.sleep(0.5)
             if process.poll() is not None:
-                raise RuntimeError(f"{name} failed; inspect its log")
+                raise UserError(f"{name} failed; inspect its log")
         for attempt in range(10):
             try:
                 original = rig("f", "m", "t")
@@ -244,9 +245,9 @@ def main():
                     raise
             time.sleep(0.2)
         else:
-            raise RuntimeError("Cannot obtain complete radio snapshot")
+            raise UserError("Cannot obtain complete radio snapshot")
         if original[-1] != "0":
-            raise RuntimeError("Radio already transmitting; test refused")
+            raise UserError("Radio already transmitting; test refused")
         snapshot = original
         native_snapshot = operating_state()
         (LOCAL / "tx-test-before.json").write_text(
@@ -264,7 +265,7 @@ def main():
             or int(readback[2]) < 2800
             or readback[-1] != "0"
         ):
-            raise RuntimeError(f"Test settings did not read back correctly: {readback}")
+            raise UserError(f"Test settings did not read back correctly: {readback}")
         if args.antenna_confirmed and not args.radio_test_mode:
             time.sleep(2)  # Discard old-frequency receiver/sink buffers.
             channel = sd.rec(
@@ -280,7 +281,7 @@ def main():
                 f"Channel assessment: busy={busy}, margin={margin:.1f} dB", flush=True
             )
             if busy:
-                raise RuntimeError("Channel occupied; antenna transmission refused")
+                raise UserError("Channel occupied; antenna transmission refused")
         stereo = np.repeat(samples[:, None], 2, axis=1)
         # Open/prime output with silence before asserting PTT. Pat is absent;
         # this test process is the only PTT controller.
@@ -344,4 +345,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

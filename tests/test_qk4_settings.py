@@ -1,5 +1,6 @@
 import unittest
 
+from cli import UserError
 from qk4_settings import verify_audio_devices
 from station_config import config
 
@@ -40,10 +41,13 @@ class SavedAudioRouting(unittest.TestCase):
         ):
             with (
                 self.subTest(preferences=wrong),
-                self.assertRaises(RuntimeError) as error,
+                self.assertRaises(UserError) as error,
             ):
                 verify_audio_devices(
                     wrong | {"radios.1.password": "test-secret"}, devices
                 )
             self.assertIn("configure-qk4", str(error.exception))
             self.assertNotIn("test-secret", str(error.exception))
+            if wrong.get("audio.speakerDevice") != "rx-cable":
+                self.assertIn("Speaker/output device", str(error.exception))
+                self.assertIn(cfg["rx_device"], str(error.exception))

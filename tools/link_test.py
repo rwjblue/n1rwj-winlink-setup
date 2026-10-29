@@ -10,6 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from cli import UserError, run_cli
 from qk4_cat import (
     DATA_A_BANDWIDTH,
     is_data_a,
@@ -53,7 +54,7 @@ def require_frequency(hz, settle_seconds=0, stable_seconds=0):
         else:
             matching_since = None
         if now >= deadline:
-            raise RuntimeError(
+            raise UserError(
                 f"Expected {hz} Hz DATA-A normal, RX >=2800 Hz, split/RIT/XIT off; got {state}"
             )
         time.sleep(0.1)
@@ -63,7 +64,7 @@ def require_frequency(hz, settle_seconds=0, stable_seconds=0):
 def tuned_frequency(khz):
     previous = operating_state()
     if previous["TQ"] != "0":
-        raise RuntimeError("Radio already transmitting; preflight refused")
+        raise UserError("Radio already transmitting; preflight refused")
     (LOCAL / "logs/link-test-radio-before.json").write_text(
         json.dumps(previous, indent=2)
     )
@@ -85,7 +86,7 @@ def tuned_frequency(khz):
                 deadline = time.monotonic() + 8
                 while (LOCAL / "station.json").exists():
                     if time.monotonic() >= deadline:
-                        raise RuntimeError(
+                        raise UserError(
                             "RF stack did not stop; frequency restoration deferred"
                         )
                     time.sleep(0.1)
@@ -105,10 +106,10 @@ def cancel_attempt(worker):
                 break
             time.sleep(0.25)
         else:
-            raise RuntimeError("Pat did not finish cancellation")
+            raise UserError("Pat did not finish cancellation")
         worker.join(timeout=2)
         if worker.is_alive():
-            raise RuntimeError("Pat's dial request is still running after cancellation")
+            raise UserError("Pat's dial request is still running after cancellation")
         wait_for_receive()
     except BaseException:
         # A failed control request must not leave an unattended RF operation.
@@ -123,7 +124,7 @@ def stop_rf_stack():
     deadline = time.monotonic() + 12
     while (LOCAL / "station.json").exists():
         if time.monotonic() >= deadline:
-            raise RuntimeError("RF stack did not stop at the attempt deadline")
+            raise UserError("RF stack did not stop at the attempt deadline")
         time.sleep(0.05)
     wait_for_receive(request_rx=True)
 
@@ -252,4 +253,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

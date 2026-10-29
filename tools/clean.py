@@ -6,6 +6,8 @@ from pathlib import Path
 import shutil
 import socket
 
+from cli import run_cli
+
 from station_config import ROOT, config
 
 
@@ -65,4 +67,4 @@ def clean():
 
 
 if __name__ == "__main__":
-    clean()
+    run_cli(clean)

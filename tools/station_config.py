@@ -1,6 +1,8 @@
 import pathlib
 import tomllib
 
+from cli import ConfigError
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
@@ -11,11 +13,11 @@ def config(root=None):
     if local.exists():
         overrides = tomllib.loads(local.read_text())
         if overrides.keys() - values.keys():
-            raise ValueError("Unknown station configuration keys")
+            raise ConfigError("Unknown station configuration keys")
         values.update(overrides)
     for key in ("qk4_rx_volume", "qk4_mic_gain"):
         if type(values[key]) is not int or not 0 <= values[key] <= 100:
-            raise ValueError(f"{key} must be an integer from 0 to 100")
+            raise ConfigError(f"{key} must be an integer from 0 to 100")
     for key in ("amplitude", "ptt_lead_seconds", "tx_tail_seconds", "max_key_seconds"):
         value = values[key]
         upper = {
@@ -29,7 +31,7 @@ def config(root=None):
             or not isinstance(value, (int, float))
             or not 0 <= value <= upper
         ):
-            raise ValueError(f"{key} must be a number from 0 to {upper}")
+            raise ConfigError(f"{key} must be a number from 0 to {upper}")
     if values["max_key_seconds"] <= 0:
-        raise ValueError("max_key_seconds must be positive")
+        raise ConfigError("max_key_seconds must be positive")
     return values

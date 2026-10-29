@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 
+from cli import UserError, run_cli
 from qk4_cat import native_power, operating_state
 from qk4_settings import DOMAIN, verify_audio_devices
 from qk4_test_mode import require_radio_test_mode
@@ -115,7 +116,7 @@ def main():
                 command, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT
             )
         if run.returncode:
-            raise RuntimeError(f"Calibration case failed; inspect {case / 'test.log'}")
+            raise UserError(f"Calibration case failed; inspect {case / 'test.log'}")
         for source in ("logs/tx-telemetry.json", "tx-test-before.json"):
             shutil.copy2(ROOT / ".local" / source, case / pathlib.Path(source).name)
         result = {"audio_peak": peak} | summarize(
@@ -123,7 +124,7 @@ def main():
         )
         results.append(result)
         if native_power() != power:
-            raise RuntimeError("Radio power changed during calibration")
+            raise UserError("Radio power changed during calibration")
         (folder / "result.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(result), flush=True)
         if result["peak_alc"] >= 4:
@@ -136,4 +137,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

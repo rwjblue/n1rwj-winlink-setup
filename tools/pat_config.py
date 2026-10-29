@@ -9,6 +9,7 @@ import subprocess
 
 from dotenv import dotenv_values
 
+from cli import ConfigError, run_cli
 from station_config import ROOT, config
 
 
@@ -17,7 +18,7 @@ def configure(root=None):
     cfg = config(root)
     template = json.loads((root / "config/pat.json").read_text())
     if template.get("secure_login_password"):
-        raise ValueError(
+        raise ConfigError(
             "Keep passwords out of config/pat.json; use WINLINK_PASSWORD in .env"
         )
     template.update(
@@ -98,7 +99,7 @@ def credential_overrides():
             or domain.lower() != "winlink.org"
             or login_call.upper() != station_call
         ):
-            raise ValueError(
+            raise ConfigError(
                 "WINLINK_EMAIL must be CALLSIGN@winlink.org and match callsign in config/station.toml"
             )
         overrides["PAT_MYCALL"] = station_call
@@ -126,7 +127,7 @@ def pat_environment():
     return env
 
 
-if __name__ == "__main__":
+def main():
     os.umask(0o077)
     target = configure()
     cfg = config()
@@ -139,3 +140,7 @@ if __name__ == "__main__":
     print(
         "Credentials: project .env or explicit environment; never written into Pat JSON"
     )
+
+
+if __name__ == "__main__":
+    run_cli(main)

@@ -12,6 +12,8 @@ import sounddevice as sd
 from scipy import signal
 
 from qk4_cat import wait_for_receive
+from cli import run_cli
+
 from station_config import ROOT, config
 
 
@@ -189,4 +191,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

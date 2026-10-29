@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 
+from cli import UserError, run_cli
 from station_config import ROOT, config
 from qk4_cat import native_power, operating_state, select_data_a
 from pat_config import configure, pat_args, pat_environment
@@ -98,11 +99,9 @@ def run_stack(transmit=False):
             children.append((name, process))
             for _ in range(300):
                 if any(p.poll() is not None for _, p in children):
-                    raise RuntimeError(
-                        f"{name} or a dependency exited; see .local/logs"
-                    )
+                    raise UserError(f"{name} or a dependency exited; see .local/logs")
                 if stopping or stop.exists():
-                    raise RuntimeError("Startup cancelled")
+                    raise UserError("Startup cancelled")
                 ready = (
                     marker
                     in path.read_bytes()[offset:].decode("utf-8", errors="replace")
@@ -114,7 +113,7 @@ def run_stack(transmit=False):
                     print(f"{name} ready", flush=True)
                     return
                 time.sleep(0.1)
-            raise TimeoutError(f"{name} did not listen on {port}")
+            raise UserError(f"{name} did not listen on {port}")
 
         try:
             flags = ["--approved-transmit"] if transmit else []
@@ -191,7 +190,7 @@ def run_stack(transmit=False):
             while not stopping and not stop.exists():
                 for name, process in children:
                     if process.poll() is not None:
-                        raise RuntimeError(
+                        raise UserError(
                             f"{name} exited ({process.returncode}); shutting down the station"
                         )
                 time.sleep(0.1)
@@ -244,7 +243,12 @@ def main():
         flags = ["--receive-only"] if args.receive_only else []
         with (LOCAL / "logs/supervisor.log").open("a") as log:
             process = subprocess.Popen(
-                [sys.executable, str(pathlib.Path(__file__).resolve()), "start", *flags],
+                [
+                    sys.executable,
+                    str(pathlib.Path(__file__).resolve()),
+                    "start",
+                    *flags,
+                ],
                 cwd=ROOT,
                 start_new_session=True,
                 stdin=subprocess.DEVNULL,
@@ -273,4 +277,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

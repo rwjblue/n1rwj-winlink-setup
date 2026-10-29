@@ -8,6 +8,7 @@ import plistlib
 import shutil
 import subprocess
 
+from cli import UserError, run_cli
 from station_config import ROOT, config
 
 DOMAIN = "com.qk4.QK4"
@@ -18,7 +19,7 @@ def audio_device_settings(devices=None):
     if devices is None:
         probe = ROOT / ".cache/bin/qt-audio-probe"
         if not probe.exists():
-            raise RuntimeError("Missing Qt audio probe; run mise run setup")
+            raise UserError("Missing Qt audio probe; run mise run setup")
         devices = json.loads(subprocess.check_output([str(probe)], text=True))
     settings = {}
     for key, name, is_input in (
@@ -33,7 +34,7 @@ def audio_device_settings(devices=None):
             and d["qk4_format_supported"]
         ]
         if len(matches) != 1:
-            raise RuntimeError(f"No unique compatible Qt audio device: {name}")
+            raise UserError(f"No unique compatible Qt audio device: {name}")
         settings[key] = matches[0]["id"]
     return settings
 
@@ -48,8 +49,15 @@ def verify_audio_devices(preferences=None, devices=None):
     if preferences.get("audio.micGain") != config()["qk4_mic_gain"]:
         wrong.append("audio.micGain")
     if wrong:
-        raise RuntimeError(
-            f"QK4 saved audio settings differ at {', '.join(wrong)}. "
+        cfg = config()
+        descriptions = {
+            "audio.speakerDevice": f"Speaker/output device: use {cfg['rx_device']!r}",
+            "audio.micDevice": f"Microphone/input device: use {cfg['tx_device']!r}",
+            "audio.micGain": f"Microphone gain: use {cfg['qk4_mic_gain']}",
+        }
+        details = "\n".join(f"  {descriptions[key]} ({key})" for key in wrong)
+        raise UserError(
+            f"QK4 saved audio settings differ:\n{details}\n"
             "Quit QK4, run mise run configure-qk4, then reopen QK4 Vail and connect."
         )
     return expected
@@ -130,4 +138,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

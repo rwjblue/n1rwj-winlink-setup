@@ -9,6 +9,8 @@ import sounddevice as sd
 from qk4_cat import DATA_A_BANDWIDTH, is_data_a, operating_state
 from qk4_settings import verify_audio_devices
 from station import LOCAL
+from cli import run_cli
+
 from station_config import config
 
 
@@ -76,4 +78,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

@@ -3,6 +3,8 @@
 import os
 import sys
 
+from cli import run_cli
+
 from pat_config import pat_args, pat_environment
 
 
@@ -18,4 +20,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)

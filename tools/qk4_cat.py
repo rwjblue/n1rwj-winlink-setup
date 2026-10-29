@@ -5,6 +5,7 @@ import socket
 import subprocess
 import time
 
+from cli import UserError
 from station_config import config
 
 DATA_A_MODE = "PKTUSB"  # Hamlib: native K4 MD6;DT0; (normal, upper sideband).
@@ -34,7 +35,7 @@ def _wait_mode(expected, timeout=5):
         state = operating_state()
         now = time.monotonic()
         if state["TQ"] != "0":
-            raise RuntimeError("Radio keyed during mode change")
+            raise UserError("Radio keyed during mode change")
         if all(state[key] == value for key, value in expected.items()):
             if matching_since is None:
                 matching_since = now
@@ -43,14 +44,14 @@ def _wait_mode(expected, timeout=5):
         else:
             matching_since = None
         time.sleep(0.1)
-    raise RuntimeError(f"Radio mode did not settle at {expected}; got {state}")
+    raise UserError(f"Radio mode did not settle at {expected}; got {state}")
 
 
 def select_data_a():
     """Select normal DATA-A through guarded Hamlib; never tunes or keys."""
     before = operating_state()
     if before["TQ"] != "0":
-        raise RuntimeError("Radio transmitting; DATA-A selection refused")
+        raise UserError("Radio transmitting; DATA-A selection refused")
     bandwidth = max(DATA_A_BANDWIDTH, int(before["BW"]) * 10)
     expected = {"MD": "6", "DT": "0", "BW": f"{bandwidth // 10:04d}"}
     # After QSY, QK4 can briefly serve the previous band's DATA-A cache before
@@ -101,10 +102,10 @@ def native_power():
         while True:
             part = cat.recv(4096)
             if not part:
-                raise RuntimeError("QK4 closed before power readback")
+                raise UserError("QK4 closed before power readback")
             pending += part
             if len(pending) > 4096:
-                raise RuntimeError("Oversized power reply")
+                raise UserError("Oversized power reply")
             while b";" in pending:
                 frame, pending = pending.split(b";", 1)
                 if re.fullmatch(rb"PC\d{3}[HLX]", frame):
@@ -139,7 +140,7 @@ def operating_state():
                 break
             pending += part
             if len(pending) > 4096:
-                raise RuntimeError("Oversized operating-state reply")
+                raise UserError("Oversized operating-state reply")
             while b";" in pending:
                 frame, pending = pending.split(b";", 1)
                 for key, pattern in patterns.items():
@@ -147,7 +148,7 @@ def operating_state():
                         result[key] = frame[2:].decode()
             if result.keys() == patterns.keys():
                 return result
-    raise RuntimeError(f"Incomplete QK4 operating state: {result}")
+    raise UserError(f"Incomplete QK4 operating state: {result}")
 
 
 def restore_frequency(hz):
@@ -169,7 +170,7 @@ def restore_frequency(hz):
             else:
                 matching_since = None
             time.sleep(0.1)
-    raise RuntimeError(f"Frequency restoration to {hz} Hz was not confirmed")
+    raise UserError(f"Frequency restoration to {hz} Hz was not confirmed")
 
 
 def wait_for_receive(timeout=3, request_rx=False):
@@ -188,12 +189,12 @@ def wait_for_receive(timeout=3, request_rx=False):
             except TimeoutError:
                 continue
             if not part:
-                raise RuntimeError("QK4 disconnected before receive readback")
+                raise UserError("QK4 disconnected before receive readback")
             pending += part
             if b"TQ0;" in pending:
                 return
             if len(pending) > 4096:
-                raise RuntimeError("Oversized QK4 status reply")
+                raise UserError("Oversized QK4 status reply")
             pending = pending[-32:]
             time.sleep(0.1)
-    raise RuntimeError("QK4 did not report receive before the deadline")
+    raise UserError("QK4 did not report receive before the deadline")

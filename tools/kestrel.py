@@ -8,6 +8,8 @@ import signal
 import sys
 import time
 
+from cli import run_cli
+
 from station_config import ROOT, config
 
 sys.path.insert(0, str(ROOT / ".cache/upstream/hfmodem/tools"))
@@ -185,4 +187,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_cli(main)
