@@ -43,11 +43,13 @@ to at least 3 kHz and keep TX EQ, VOX, noise reduction/blanking and automatic
 notch off. These other radio DSP settings have not been automated or qualified.
 QK4's amplifier integration was disabled during the first trial.
 
-Pat's normal QSY path changes frequency without selecting a radio mode.
-The launcher selects DATA-A only at startup, so a later band change can
-recall that band's previous mode. Select DATA-A normal and an RX filter of
-at least 2.8 kHz in QK4 after changing bands, or restart the station on the
-new band. `doctor` checks the result without changing it.
+The station's Pat build runs a receive-only preparation hook after each
+successful QSY. It waits for the target frequency, selects DATA-A normal
+after band recall, reapplies DT0 after DATA profile recall, and ensures an
+RX filter of at least 2.8 kHz while preserving wider filters. Stable native
+frequency/mode/submode/filter and receive readback must pass before Pat
+reports QSY success. Connect without a frequency runs the same preparation
+at the current dial. `doctor` checks the result without changing it.
 
 The link test requires stable QK4 frequency, DATA-A normal, an RX filter of at least 2.8 kHz
 and split/RIT/XIT off before CONNECT, and rejects transient optimistic UI state.

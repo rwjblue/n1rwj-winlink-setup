@@ -9,6 +9,27 @@ kept in ignored `.cache/upstream`; user checkouts were not changed.
 | hfmodem | `a340f5cff17b` / 0.3.4 | [kestrel_host.py](https://github.com/sstjohn/hfmodem/blob/a340f5cff17b653f9c18765d4acf3182bc74ac12/tools/kestrel_host.py), [CONFIG](https://github.com/sstjohn/hfmodem/blob/a340f5cff17b653f9c18765d4acf3182bc74ac12/docs/CONFIG.md), [STATUS](https://github.com/sstjohn/hfmodem/blob/a340f5cff17b653f9c18765d4acf3182bc74ac12/docs/STATUS.md) |
 | QK4 | `72025dfeea15` | [CAT server](https://github.com/mikeg-dal/QK4/blob/72025dfeea15fb31759c8dd03a6146912a6ca648/src/network/catserver.cpp), [audio engine](https://github.com/mikeg-dal/QK4/blob/72025dfeea15fb31759c8dd03a6146912a6ca648/src/audio/audioengine.cpp), [TCI design](https://github.com/mikeg-dal/QK4/blob/72025dfeea15fb31759c8dd03a6146912a6ca648/docs/tci-server-design.md) |
 
+## Station Pat QSY overlay
+
+Upstream Pat's `SetFreq` changes frequency without selecting a radio mode.
+`tools/build_pat.py` builds the pinned source with Go's source overlay into
+`.cache/pat-station/pat`; the upstream checkout stays clean. Setup builds it,
+and project launchers rebuild it when the overlay inputs change. The build
+refuses changed upstream call sites instead of silently omitting the hook.
+
+The overlay invokes the repository's `bin/pat-qsy` hook after successful
+frequency changes in both the HTTP QSY API and Connect/CLI path. It also
+checks DATA-A before a VARA HF Connect that has no frequency parameter:
+Pat's UI removes that parameter after a failed QSY. Hook failures reach
+Pat's existing QSY/Connect error handling before the modem dial.
+
+The hook calls the station's native mode preparation and never keys or
+changes RF power. It runs after Hamlib's TCP transaction because Pat's
+rig client has a one-second timeout, shorter than stable band/mode readback.
+The hook has a 30-second deadline. The launcher fixes its path in Pat's
+environment, discarding any inherited override. Plain upstream Pat outside
+the repository keeps its usual behavior.
+
 ## Host and PTT path
 
 Pat uses adjacent TCP command/data ports. Its VARA adapter sets compression,

@@ -24,8 +24,9 @@ mise run configure-qk4 --dry-run  # Optional preview; safe while QK4 is open
 mise run configure-qk4
 ```
 
-Setup installs pinned Go, Python, uv and Pat through mise, and Kestrel into
-`.venv` through uv. There is no separate PACT dependency. All non-secret
+Setup installs pinned Go, Python, uv and Pat through mise, builds the station's
+Pat QSY overlay, and installs Kestrel into `.venv` through uv. There is no
+separate PACT dependency. All non-secret
 station settings are checked in; a fresh checkout needs no copied `.local`
 files. QK4 retains its saved radio connection and credentials in macOS.
 Follow [hardware and macOS setup](docs/SETUP.md) when configuring another Mac.
@@ -142,11 +143,12 @@ DSP settings and PTT timing still need radio-path qualification.
 
 DATA-A uses upper sideband on 40m as well as 20m; the 40m voice LSB convention
 does not apply to these VARA dial frequencies. Do not select DATA-A reverse,
-AFSK, FSK or PSK submodes. Pat's Connect action tunes frequency; it does not
-select the radio mode. A band change can recall that band's last-used mode;
-the launcher currently selects DATA-A only at startup. After changing bands
-or mode, select DATA-A normal with an RX filter of at least 2.8 kHz in QK4
-and verify with `mise run doctor`, or restart the station on the new band.
+AFSK, FSK or PSK submodes. Selecting a gateway channel from Pat's RMS list
+tunes the radio, then reapplies and verifies DATA-A normal and an RX filter
+of at least 2.8 kHz, including after a band change. Wider filters are preserved.
+Wait for Pat's frequency field to turn green before connecting. A failed
+readback reports QSY failure. Connect also checks mode and filter when no
+frequency is supplied.
 
 Startup saves the previous native mode/submode/filter/frequency under
 `.local/logs/radio-before-data-a-*.json`. Stopping leaves DATA-A selected.

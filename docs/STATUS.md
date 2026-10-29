@@ -34,6 +34,21 @@ uv 0.11.7; Pat v1.0.0 at the pinned source revision; hfmodem/hfhost/creance
 | Modem regression | 37 upstream host lifecycle and BW2300 codec tests passed. Synthetic payload recovery is not independent RF evidence. | Commands below |
 | Failure shutdown | SIGKILL to the live receive-only Kestrel process caused all five station listener ports to close; normal restart reattached Pat. | Supervisor log; deliberate manual fault injection |
 
+## Automatic mode after Pat QSY — 2026-10-29
+
+The station Pat overlay passed `mise run bench-ptt` through actual Pat's HTTP
+QSY API, actual Hamlib and the CAT guard against a simulated K4. Gateway tunes
+from 20m to 40m and back, plus a same-band change, finished with DATA-A normal
+and RX bandwidth at least 2.8 kHz. The simulator delayed band recall to USB
+with a narrow filter, then recalled an RTTY/narrow DATA profile after entering
+DATA; the hook corrected both. A wider 3 kHz RX filter was preserved.
+
+When the simulator refused DATA-A, QSY returned HTTP 500. Connect attempts
+with and without a frequency also returned HTTP 500 before the modem dial.
+None of these preparations keyed the simulator. The subsequent existing
+simulated PTT/deadman test still passed. No real radio, RF or audio devices
+were used; live cross-band verification of the overlay remains unclaimed.
+
 ## DATA-A audio verification
 
 During the DATA-A change, the first receive capture was silent. QK4's saved
