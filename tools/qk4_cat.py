@@ -51,16 +51,20 @@ def select_data_a():
     before = operating_state()
     if before["TQ"] != "0":
         raise RuntimeError("Radio transmitting; DATA-A selection refused")
-    expected = {"MD": "6", "DT": "0", "BW": f"{DATA_A_BANDWIDTH // 10:04d}"}
-    if not is_data_a(before):
-        rig("M", DATA_A_MODE, str(DATA_A_BANDWIDTH))
-    selected = _wait_mode({"MD": "6", "DT": "0"})
-    if int(selected["BW"]) * 10 >= DATA_A_BANDWIDTH:
-        return selected
-    # Hamlib sends BW before DT. The K4 recalls its data filter after DT0,
-    # so set BW again only after the mode/submode has actually settled.
+    bandwidth = max(DATA_A_BANDWIDTH, int(before["BW"]) * 10)
+    expected = {"MD": "6", "DT": "0", "BW": f"{bandwidth // 10:04d}"}
+    # After QSY, QK4 can briefly serve the previous band's DATA-A cache before
+    # the K4 recalls USB/RTTY. Send the mode even when that first read matches.
+    rig("M", DATA_A_MODE, str(bandwidth))
+    _wait_mode({"MD": "6"})
+    # The new band's DATA profile can recall FSK-D after Hamlib already sent
+    # DT0. Select the submode again after DATA itself has settled, then BW last.
     cfg = config()
     with socket.create_connection((cfg["qk4_host"], cfg["qk4_port"]), timeout=2) as cat:
+        cat.sendall(b"DT0;")
+        selected = _wait_mode({"MD": "6", "DT": "0"})
+        if int(selected["BW"]) * 10 >= bandwidth:
+            return selected
         cat.sendall(f"BW{expected['BW']};".encode())
         return _wait_mode(expected)
 
@@ -72,17 +76,18 @@ def restore_mode(state):
         r"\d{4}", expected["BW"]
     ):
         raise ValueError("Invalid saved K4 mode/filter")
-    frames = [f"MD{expected['MD']}"]
     if expected["MD"] in ("6", "9"):
         if not re.fullmatch(r"[0-3]", state["DT"]):
             raise ValueError("Invalid saved K4 data submode")
         expected["DT"] = state["DT"]
-        frames += [f"DT{state['DT']}", f"MD{state['MD']}"]
     wait_for_receive()
     cfg = config()
     with socket.create_connection((cfg["qk4_host"], cfg["qk4_port"]), timeout=2) as cat:
-        cat.sendall((";".join(frames) + ";").encode())
-        _wait_mode({key: value for key, value in expected.items() if key != "BW"})
+        cat.sendall(f"MD{expected['MD']};".encode())
+        _wait_mode({"MD": expected["MD"]})
+        if "DT" in expected:
+            cat.sendall(f"DT{expected['DT']};MD{expected['MD']};".encode())
+            _wait_mode({"MD": expected["MD"], "DT": expected["DT"]})
         cat.sendall(f"BW{expected['BW']};".encode())
         return _wait_mode(expected)
 

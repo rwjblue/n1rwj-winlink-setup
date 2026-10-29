@@ -63,6 +63,7 @@ class RadioReadback(unittest.TestCase):
             patch("qk4_cat.rig") as rig,
             patch("qk4_cat.time.monotonic", side_effect=itertools.count(0, 0.1)),
             patch("qk4_cat.time.sleep"),
+            patch("socket.create_connection"),
         ):
             self.assertEqual(select_data_a(), good)
         rig.assert_called_once_with("M", "PKTUSB", "2800")
@@ -76,6 +77,17 @@ class RadioReadback(unittest.TestCase):
             select_data_a()
         rig.assert_not_called()
 
+    def test_data_a_is_sent_even_when_the_pre_retune_cache_already_matches(self):
+        cached = {"MD": "6", "DT": "0", "BW": "0300", "TQ": "0"}
+        with (
+            patch("qk4_cat.operating_state", return_value=cached),
+            patch("qk4_cat.rig") as rig,
+            patch("qk4_cat._wait_mode", return_value=cached),
+            patch("socket.create_connection"),
+        ):
+            self.assertEqual(select_data_a(), cached)
+        rig.assert_called_once_with("M", "PKTUSB", "3000")
+
     def test_filter_is_applied_after_data_submode_recalls_a_narrower_filter(self):
         before = {"MD": "2", "DT": "0", "BW": "0280", "TQ": "0"}
         recalled = before | {"MD": "6", "BW": "0250"}
@@ -86,12 +98,12 @@ class RadioReadback(unittest.TestCase):
         with (
             patch("qk4_cat.operating_state", return_value=before),
             patch("qk4_cat.rig", side_effect=lambda *args: events.append(args)),
-            patch("qk4_cat._wait_mode", side_effect=[recalled, wanted]),
+            patch("qk4_cat._wait_mode", side_effect=[recalled, recalled, wanted]),
             patch("socket.create_connection") as connect,
         ):
             connect.return_value.__enter__.return_value = cat
             self.assertEqual(select_data_a(), wanted)
-        self.assertEqual(events, [("M", "PKTUSB", "2800"), b"BW0280;"])
+        self.assertEqual(events, [("M", "PKTUSB", "2800"), b"DT0;", b"BW0280;"])
 
     def test_native_restore_keeps_reverse_orientation_and_rtty_submode(self):
         cat = MagicMock()
@@ -105,6 +117,6 @@ class RadioReadback(unittest.TestCase):
             restore_mode(saved)
         self.assertEqual(
             [call.args[0] for call in cat.sendall.call_args_list],
-            [b"MD9;DT1;MD9;", b"BW0050;"],
+            [b"MD9;", b"DT1;MD9;", b"BW0050;"],
         )
         wait.assert_called_with(saved)
