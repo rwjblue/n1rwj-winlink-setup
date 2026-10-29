@@ -7,6 +7,7 @@ import urllib.request
 import sounddevice as sd
 
 from qk4_cat import DATA_A_BANDWIDTH, is_data_a, operating_state
+from qk4_settings import verify_audio_devices
 from station import LOCAL
 from station_config import config
 
@@ -17,6 +18,7 @@ def main():
     if not state.exists():
         raise SystemExit("Station stopped: connect QK4, then mise run start")
     status = json.loads(state.read_text())
+    qk4_devices = verify_audio_devices()
     for direction in ("rx", "tx"):
         name = cfg[direction + "_device"]
         getattr(
@@ -56,6 +58,7 @@ def main():
         "radio": radio,
         "native_mode": {key: native[key] for key in ("MD", "DT", "BW", "TQ")},
         "audio_devices": [cfg["rx_device"], cfg["tx_device"]],
+        "qk4_saved_devices": qk4_devices,
     }
     print(json.dumps(result, indent=2))
     if radio[-1] != "0":

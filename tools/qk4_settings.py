@@ -4,12 +4,53 @@ import argparse
 import datetime
 import json
 import pathlib
+import plistlib
 import shutil
 import subprocess
 
 from station_config import ROOT, config
 
 DOMAIN = "com.qk4.QK4"
+
+
+def audio_device_settings(devices=None):
+    cfg = config()
+    if devices is None:
+        probe = ROOT / ".cache/bin/qt-audio-probe"
+        if not probe.exists():
+            raise RuntimeError("Missing Qt audio probe; run mise run setup")
+        devices = json.loads(subprocess.check_output([str(probe)], text=True))
+    settings = {}
+    for key, name, is_input in (
+        ("audio.speakerDevice", cfg["rx_device"], False),
+        ("audio.micDevice", cfg["tx_device"], True),
+    ):
+        matches = [
+            d
+            for d in devices
+            if d["name"] == name
+            and d["input"] == is_input
+            and d["qk4_format_supported"]
+        ]
+        if len(matches) != 1:
+            raise RuntimeError(f"No unique compatible Qt audio device: {name}")
+        settings[key] = matches[0]["id"]
+    return settings
+
+
+def verify_audio_devices(preferences=None, devices=None):
+    """Check only saved audio device selections; never expose radio credentials."""
+    expected = audio_device_settings(devices)
+    if preferences is None:
+        prefs = pathlib.Path.home() / "Library/Preferences" / (DOMAIN + ".plist")
+        preferences = plistlib.loads(prefs.read_bytes()) if prefs.exists() else {}
+    wrong = [key for key, value in expected.items() if preferences.get(key) != value]
+    if wrong:
+        raise RuntimeError(
+            f"QK4 saved audio routing differs at {', '.join(wrong)}. "
+            "Quit QK4, run mise run configure-qk4, then reopen QK4 Vail and connect."
+        )
+    return expected
 
 
 def main():
@@ -54,24 +95,9 @@ def main():
         )
         return
     cfg = config()
-    devices = json.loads(
-        subprocess.check_output([str(ROOT / ".cache/bin/qt-audio-probe")], text=True)
-    )
-    settings = {}
-    for key, name, is_input in [
-        ("speakerDevice", cfg["rx_device"], False),
-        ("micDevice", cfg["tx_device"], True),
-    ]:
-        matches = [
-            d
-            for d in devices
-            if d["name"] == name
-            and d["input"] == is_input
-            and d["qk4_format_supported"]
-        ]
-        if len(matches) != 1:
-            raise SystemExit(f"No unique compatible Qt audio device: {name}")
-        settings["audio." + key] = ("-string", matches[0]["id"])
+    settings = {
+        key: ("-string", value) for key, value in audio_device_settings().items()
+    }
     settings.update(
         {
             "audio.monoMixEnabled": ("-bool", "false"),

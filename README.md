@@ -32,7 +32,8 @@ Follow [hardware and macOS setup](docs/SETUP.md) when configuring another Mac.
 ## Daily use
 
 1. Open QK4 Vail and connect its saved local K4 profile. Close other modem/CAT clients.
-2. Run `mise run start`. This starts Kestrel, guarded CAT/Hamlib and Pat together,
+2. Run `mise run start`. This checks QK4's saved Loopback device selections,
+   then starts Kestrel, guarded CAT/Hamlib and Pat together,
    **receive-only**, in the background, and selects normal DATA-A with an
    RX filter of at least 2.8 kHz. Both mode and data submode are checked before Pat starts.
 3. Open [Pat's mailbox](http://127.0.0.1:8080/ui). Read mail or compose a message
@@ -174,6 +175,11 @@ See [source and audio findings](docs/UPSTREAM.md) for details.
 ## Troubleshooting and maintenance
 
 Start with `mise run doctor`, `.local/logs/supervisor.log` and the child logs.
+For `QK4 saved audio routing differs`, quit QK4, run
+`mise run configure-qk4`, then reopen **QK4 Vail** and connect the local profile.
+The configurator backs up preferences before replacing audio selections.
+This fixes silent Loopback RX or an unintended microphone source; restart
+QK4 so the saved selections become the active devices.
 `connect: connection refused` on `127.0.0.1:8300` means Kestrel is stopped;
 restart the complete station, rather than Pat alone. `mise run start` is
 receive-only: its modem rejects outgoing connections and incoming ARQ replies

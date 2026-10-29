@@ -38,6 +38,7 @@ class RFStartup(unittest.TestCase):
             with (
                 patch("station.LOCAL", local),
                 patch("station.pat_environment", return_value={}),
+                patch("station.verify_audio_devices"),
                 patch("station.configure", return_value=pat_config),
                 patch("station.native_power", return_value=b"PC050H") as power,
                 patch("station.port_open", return_value=False),

@@ -15,6 +15,7 @@ import time
 from station_config import ROOT, config
 from qk4_cat import native_power, operating_state, select_data_a
 from pat_config import configure, pat_args, pat_environment
+from qk4_settings import verify_audio_devices
 
 LOCAL = ROOT / ".local"
 
@@ -30,6 +31,7 @@ def port_open(port):
 def run_stack(transmit=False):
     cfg = config()
     pat_env = pat_environment()
+    verify_audio_devices()
     if transmit:
         print(
             f"RF power readback: {native_power().decode()} (radio controlled)",

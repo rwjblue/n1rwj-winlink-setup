@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="Check QK4's exact Qt audio format against installed devices"
 #MISE hide=true
+#MISE depends=["native-deps"]
 set -euo pipefail
 qt_prefix="$(brew --prefix qt)"
 mkdir -p .cache/bin
