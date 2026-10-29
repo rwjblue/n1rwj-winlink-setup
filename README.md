@@ -107,6 +107,21 @@ not change routing or tools. Restart the station after editing credentials.
 `mise run config` reports whether a password is available without printing it;
 this checks loading, not whether Winlink accepts the password.
 
+## Audio drive
+
+Kestrel reads its Loopback devices and peak drive from `config/station.toml`.
+The calibrated pair is **`amplitude = 0.35` and `qk4_mic_gain = 25`**.
+QK4's mic slider is cubic, so these settings must be considered together.
+The real Kestrel BW2300 connect waveform reached ALC 4 on both 40m and 20m
+in TX TEST, below the K4's "5" mark, with compression and forward power zero.
+This calibrates audio drive; it does not verify on-air RMS connectivity.
+
+`mise run doctor` reports the pair and checks QK4's saved mic gain. Kestrel's
+startup log shows the actual devices and peak drive. After changing QK4 gain,
+recalibrate before using that new pair. `mise run calibrate-audio` prints a
+plan; [SETUP](docs/SETUP.md#audio-drive-calibration) explains the TX TEST sweep.
+The radio's RF power setting is independent and is never changed by these tools.
+
 ## An approved RF session
 
 The operator authorized the existing resonant 40m/20m antenna and use of the
@@ -114,7 +129,9 @@ radio's selected power setting for this setup. Earlier recorded RF tests used
 5 W; the software no longer imposes that limit.
 
 Connect QK4 and select the desired RF power in QK4/K4. Startup selects
-**DATA-A normal** (upper sideband), shown as `PKTUSB` by Hamlib, and an RX filter of at least 2.8 kHz. DATA-A disables speech compression internally. Check that the K4's
+**DATA-A normal** (upper sideband), shown as `PKTUSB` by Hamlib, and an RX
+filter of at least 2.8 kHz. DATA-A disables speech compression internally.
+Check that the K4's
 DATA transmit bandwidth passes the modem audio (at least 3 kHz), and keep
 TX EQ and receive noise processing off. Power readback is informational.
 DSP settings and PTT timing still need radio-path qualification.
@@ -176,11 +193,11 @@ See [source and audio findings](docs/UPSTREAM.md) for details.
 ## Troubleshooting and maintenance
 
 Start with `mise run doctor`, `.local/logs/supervisor.log` and the child logs.
-For `QK4 saved audio routing differs`, quit QK4, run
+For `QK4 saved audio settings differ`, quit QK4, run
 `mise run configure-qk4`, then reopen **QK4 Vail** and connect the local profile.
 The configurator backs up preferences before replacing audio selections.
-This fixes silent Loopback RX or an unintended microphone source; restart
-QK4 so the saved selections become the active devices.
+This fixes silent Loopback RX, an unintended microphone source or a gain
+mismatch; restart QK4 so the saved settings become active.
 `connect: connection refused` on `127.0.0.1:8300` means Kestrel is stopped;
 restart the complete station, rather than Pat alone. `mise run start` is
 receive-only: its modem rejects outgoing connections and incoming ARQ replies

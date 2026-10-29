@@ -10,7 +10,8 @@ qk4_port = 9299
 cat_guard_port = 9300
 rigctld_port = 4532
 http_port = 8080
-amplitude = 0.05
+# DATA-A TX TEST: real Kestrel connect request at peak 0.35 / mic gain 25 -> ALC 4.
+amplitude = 0.35
 # Pat processes asynchronous PTT notifications. Allow its CAT command to arrive
 # before samples are played. Both values still need radio-path qualification.
 ptt_lead_seconds = 0.20

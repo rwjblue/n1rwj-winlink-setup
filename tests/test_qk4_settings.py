@@ -23,11 +23,19 @@ class SavedAudioRouting(unittest.TestCase):
                 "id": "tx-cable",
             },
         ]
-        correct = {"audio.speakerDevice": "rx-cable", "audio.micDevice": "tx-cable"}
-        self.assertEqual(verify_audio_devices(correct, devices), correct)
+        correct = {
+            "audio.speakerDevice": "rx-cable",
+            "audio.micDevice": "tx-cable",
+            "audio.micGain": cfg["qk4_mic_gain"],
+        }
+        self.assertEqual(
+            verify_audio_devices(correct, devices),
+            {key: value for key, value in correct.items() if key != "audio.micGain"},
+        )
         for wrong in (
             correct | {"audio.micDevice": "BuiltInMicrophoneDevice"},
             correct | {"audio.speakerDevice": ""},
+            correct | {"audio.micGain": cfg["qk4_mic_gain"] + 1},
             {},
         ):
             with (

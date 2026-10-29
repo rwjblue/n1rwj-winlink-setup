@@ -28,14 +28,16 @@ and a new TCI backend are unnecessary. See [UPSTREAM](UPSTREAM.md) for raw
 versus Opus fidelity and latency measurements.
 
 Tracked station settings set QK4 main volume to 47, mic gain to 25 and modem
-peak drive to 0.05. The configure task also disables RX boost and QK4's
-amplifier integration. These produced RF near the 5 W setting in the first trial;
-waveform quality still needs qualification. QK4's microphone capture opened
+peak drive to **0.35**, calibrated with real Kestrel MFSK in DATA-A TX TEST
+on 40m and 20m. The previous 0.05 drive produced no ALC deflection. The
+configure task also disables RX boost and QK4's amplifier integration.
+RF waveform quality still needs qualification. QK4's microphone capture opened
 successfully on PTT. Allow macOS microphone access for virtual-device capture
 if prompted. System audio defaults were not changed.
 
-Station startup selects DATA-A normal and an RX filter of at least 2.8 kHz. Hamlib names
-this `PKTUSB`; native K4 readback must be `MD6; DT0;` with `BW0280;` or wider.
+Station startup selects DATA-A normal and an RX filter of at least 2.8 kHz.
+Hamlib names this `PKTUSB`; native K4 readback must be `MD6; DT0;` with
+`BW0280;` or wider.
 DATA-A internally disables speech compression. Set the K4 DATA TX bandwidth
 to at least 3 kHz and keep TX EQ, VOX, noise reduction/blanking and automatic
 notch off. These other radio DSP settings have not been automated or qualified.
@@ -137,6 +139,54 @@ success. K4 TX TEST inhibits radio RF but still keys downstream gear, as
 described in the programmer's reference. Return to TX NORM only after the
 check has unkeyed. The script does not toggle TX TEST or alter RF power.
 
+## Audio drive calibration
+
+`amplitude` controls Kestrel's normalized audio peak, not RF watts. QK4
+applies its cubic mic gain afterward: the calibrated 0.35/25 pair produces
+peak audio of about 0.00547 (-45.2 dBFS) before network encoding. Compared
+with 0.05/25, the signal is 7 times higher in amplitude (+16.9 dB). Radio
+power remains operator-controlled; calibration used native `PC050H` unchanged.
+
+The [K4 operating manual](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4%20Built-In%20Operating%20Manual%20rev%20C22/K4BuiltInOperatingManualrevC22.html)
+advises keeping audio-data ALC just below the "5" mark. TX TEST supports
+audio-only ALC adjustment while RF is inhibited. Stop the station, enable
+TX TEST, and confirm the VFO's active TEST indicator before executing:
+
+```sh
+mise run calibrate-audio                                  # Plan, no I/O
+mise run calibrate-audio -- --execute --dial-khz 7101       # Sweep 40m
+mise run calibrate-audio -- --execute --dial-khz 14101.5 --peaks 0.35
+```
+
+The default waveform is the upstream Kestrel BW2300 connect request to
+N0CALL, rendered offline and normalized exactly as `AudioVaraIO.tx` does.
+No RMS connection is attempted. `--signal cw` selects the identified CW
+comparison signal. Every case rechecks TX TEST immediately before PTT,
+uses the standalone five-second key guard, verifies logical TX and zero
+forward-meter readings, and saves private per-level logs and telemetry under
+`.local/logs/audio-calibration-*/`. The sweep stops on ALC 4 or above; it
+refuses to qualify a run with no measured response in the 2–4 range.
+
+The task does not rewrite configuration or toggle TX TEST. Choose the pair
+from its measurements, edit `config/station.toml`, and restart the station.
+If changing `qk4_mic_gain`, quit QK4, run `mise run configure-qk4` and relaunch
+Vail before measuring. Startup/doctor verify the saved mic gain matches the
+configuration. Restore TX NORM after confirmed receive. The standalone test
+now honors configured drive; its former hard-coded 5 percent clamp is removed.
+
+For a single diagnostic level without changing defaults:
+
+```sh
+mise run tx-test -- --execute --radio-test-mode --dial-khz 7101 \
+  --signal vara-connect --audio-peak 0.35
+```
+
+Overrides require TX TEST. Waveform-specific ALC matters: 0.40 reached ALC 4
+with CW but 5 with the modem waveform, so the chosen modem default is 0.35.
+This qualifies drive at the tested settings, not high-speed OFDM distortion,
+RF output power, gateway decoding or mail transfer. Recheck ALC when changing
+the radio power, signal bandwidth, QK4 gain or audio encoding.
+
 ## DATA-A and mode rollback
 
 The K4's [operating manual](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4%20Built-In%20Operating%20Manual%20rev%20C22/K4BuiltInOperatingManualrevC22.html)
@@ -145,10 +195,11 @@ the dial is the suppressed carrier frequency, and compression is internally
 disabled. The [programmer's reference](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4%20Programmer%27s%20Reference%2C%20rev.%20D5.pdf)
 defines `MD6` as DATA, `MD9` as reverse DATA, and `DT0` as DATA-A.
 
-Startup selects Hamlib `PKTUSB`, waits for stable native mode/submode, then
-widens a narrower RX filter to 2.8 kHz last. Wider operator-selected filters
-are retained. Hamlib 4.7.2 sends BW before DT; the live K4 recalled a 2.5 kHz
-filter after DT0 until the helper reapplied BW0280. A one-second
+Startup always selects Hamlib `PKTUSB`, waits for DATA mode to settle, then
+reapplies DT0 and waits before setting the RX filter last. A band change can
+briefly report the old DATA-A cache while the K4 recalls USB or FSK-D. Hamlib
+4.7.2 sends BW before DT; the live K4 recalled a 2.5 kHz filter after DT0 until
+the helper reapplied BW0280. Wider operator-selected filters are retained. A one-second
 stable readback is required. `doctor` checks mode/submode/filter without
 changing them. QK4's CAT server does not return `DW` (DATA TX bandwidth), so
 check that setting on the radio; RX `BW0280` does not prove TX bandwidth.
@@ -161,7 +212,7 @@ DATA-A RF modulation or RMS decoding; see STATUS for the measurements.
 Raw EM0/SL0 and the named Loopback devices are unchanged.
 
 Startup and `doctor` compare QK4's saved device IDs with Qt's exact compatible
-Loopback devices. If settings drift to system defaults or the built-in mic,
+Loopback devices and verify the calibrated mic gain. If settings drift,
 quit QK4 and run `mise run configure-qk4`; it backs up preferences first.
 Reopen Vail and connect the local profile. Stored settings alone cannot prove
 live audio, which is why the receive and outgoing-path checks are separate.

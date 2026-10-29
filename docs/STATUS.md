@@ -3,6 +3,8 @@
 **Current state: DATA-A normal is selected and the station is running
 receive-only with QK4 Vail. Live receive, local TX cable fidelity, and outgoing
 network audio with the K4 RF output inhibited in TX TEST have been verified.
+Drive is calibrated at Kestrel peak 0.35 with QK4 mic gain 25: the real modem
+waveform reached ALC 4 on both 40m and 20m with forward power zero.
 Earlier RF trials used USB. No DATA-A on-air RMS link or HF message transfer
 is claimed. Project `.env` credentials are loaded, but authentication remains
 untested. The operator is continuing gateway connectivity testing.**
@@ -28,7 +30,7 @@ uv 0.11.7; Pat v1.0.0 at the pinned source revision; hfmodem/hfhost/creance
 | TX cable | 48 kHz chirp, gain 1.0, residual SNR 132.41 dB, estimated latency 16.0 ms, no stream errors. QK4 gate closed; receive readback before/after. | `mise run audio -- cable --direction tx` |
 | DATA-A outgoing audio | In confirmed K4 TX TEST, QK4 captured the TX cable at 48 kHz mono and converted 4:1 to 12 kHz. A 3.78-second CW ID produced 50 logical-TX samples; all 67 forward-meter samples were zero. TQ0 and DATA-A/3 kHz were restored; PC050H was unchanged. | `mise run tx-test -- --execute --radio-test-mode --dial-khz 7055` |
 | Pat/Hamlib PTT bench | Actual Hamlib selected PKTUSB/2800, producing MD6/DT0 through the guard. Pat then produced TX/RX/TX/RX on a simulated K4. Key ~1.19 ms; unkey ~1.03 ms; 0.5 s deadman unkey passed. No real radio/audio opened. | `mise run bench-ptt` |
-| Interlocks/configuration | 42 local tests pass, covering credentials, DATA-A/submode/filter validation, filter recall ordering, routing drift, positive TX TEST confirmation, zero-forward-power telemetry, cancellation and independent unkey. | `mise run check` |
+| Interlocks/configuration | 48 local tests pass, covering credentials, DATA-A/submode/filter validation, band recall ordering, routing/gain drift, TX TEST confirmation, drive overrides, real waveform normalization, zero-forward-power telemetry, cancellation and independent unkey. | `mise run check` |
 | Modem regression | 37 upstream host lifecycle and BW2300 codec tests passed. Synthetic payload recovery is not independent RF evidence. | Commands below |
 | Failure shutdown | SIGKILL to the live receive-only Kestrel process caused all five station listener ports to close; normal restart reattached Pat. | Supervisor log; deliberate manual fault injection |
 
@@ -60,6 +62,56 @@ Private evidence: `.local/logs/qk4-data-a.log`,
 Preference backups remain under the private `backups` directory described
 below, including `qk4-before-data-a-audio-20261029T025521495976Z.plist` and
 `qk4-20261029T025539764629Z.plist`. Generated logs and audio are ignored by Git.
+
+## Audio drive calibration
+
+At the original 0.05 drive with QK4 mic gain 25, the DATA-A CW baseline
+showed logical TX but ALC remained zero. The standalone test also had a separate
+5 percent clamp, now removed. Its drive can be overridden only in confirmed
+TX TEST. The sweep records each level and does not rewrite defaults.
+
+Measured on 2026-10-28 Eastern, with raw EM0/SL0, DATA-A normal, 3 kHz RX
+and QK4 mic gain 25. Native RF setting PC050H was unchanged; all forward-meter
+samples were zero and compression remained zero:
+
+| Waveform | Dial MHz | Peak drive | Peak ALC |
+|---|---|---|---|
+| CW ID | 7.101 | 0.05 | 0 |
+| CW ID | 7.101 | 0.20 | 0 |
+| CW ID | 7.101 | 0.40 | 4 |
+| Kestrel BW2300 connect request | 7.101 | 0.40 | 5 |
+| Kestrel BW2300 connect request | 7.101 | 0.30 | 2 |
+| Kestrel BW2300 connect request | 7.101 | **0.35** | **4** |
+| Kestrel BW2300 connect request | 14.1015 | **0.35** | **4** |
+
+The modem waveform is synthesized by upstream `vara_mfsk.synth_burst` to
+N0CALL and normalized with the same `levels.at_drive` used by AudioVaraIO.
+This produces a 1.75-second test without opening an RMS session. The selected
+0.35/25 pair was verified with 51 zero-forward-meter samples on 40m and 50 on
+20m. ALC 4 meets the operating manual's guidance to stay below the "5" mark.
+It is audio-drive qualification with RF inhibited, not measured RF output,
+high-speed OFDM distortion, an RMS decode or a mail transfer.
+
+The 20m check initially exposed asynchronous band/profile recall: QK4 briefly
+served the previous band's DATA-A cache, then the radio recalled USB/FSK-D.
+Mode, data submode and filter are now explicitly selected in separate settled
+stages, including during restoration. The successful 20m test returned to
+7.101 MHz DATA-A/3 kHz, TQ0. TX NORM was restored after unkey.
+
+Defaults now use peak 0.35, 7 times the old amplitude (+16.9 dB), with QK4 mic
+gain 25 unchanged. Startup and doctor verify saved gain as well as device IDs;
+Kestrel logs its actual devices/drive. The calibration task now defaults to
+the modem waveform and includes 0.30/0.35 in its sweep. RF power is still
+selected on the radio, with no software power cap or writes.
+
+Private per-level evidence is under `.local/logs/` in
+`audio-calibration-20261029T034111078359Z` (CW baseline),
+`audio-calibration-20261029T034215011592Z` (CW sweep),
+`audio-calibration-20261029T034640494130Z` (modem 0.40),
+`audio-calibration-20261029T034730637943Z` (modem 0.30/0.35), and
+`audio-calibration-20261029T035305051340Z` (20m confirmation).
+Each includes case logs, native snapshots and raw telemetry. Failed 20m
+preflight attempts were refused before keying; their logs are also retained.
 
 ## Raw versus Opus diagnostic
 

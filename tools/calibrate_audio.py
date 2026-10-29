@@ -32,9 +32,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--dial-khz", type=float, help="Default: current radio dial")
-    parser.add_argument("--signal", choices=("cw", "vara-connect"), default="cw")
     parser.add_argument(
-        "--peaks", nargs="+", type=float, default=[0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
+        "--signal", choices=("cw", "vara-connect"), default="vara-connect"
+    )
+    parser.add_argument(
+        "--peaks",
+        nargs="+",
+        type=float,
+        default=[0.05, 0.1, 0.2, 0.3, 0.35, 0.4, 0.6, 0.8, 1.0],
     )
     args = parser.parse_args()
     if any(not 0 < p <= 1 for p in args.peaks) or args.peaks != sorted(set(args.peaks)):

@@ -39,15 +39,17 @@ def audio_device_settings(devices=None):
 
 
 def verify_audio_devices(preferences=None, devices=None):
-    """Check only saved audio device selections; never expose radio credentials."""
+    """Check saved audio selections and calibration gain; never expose credentials."""
     expected = audio_device_settings(devices)
     if preferences is None:
         prefs = pathlib.Path.home() / "Library/Preferences" / (DOMAIN + ".plist")
         preferences = plistlib.loads(prefs.read_bytes()) if prefs.exists() else {}
     wrong = [key for key, value in expected.items() if preferences.get(key) != value]
+    if preferences.get("audio.micGain") != config()["qk4_mic_gain"]:
+        wrong.append("audio.micGain")
     if wrong:
         raise RuntimeError(
-            f"QK4 saved audio routing differs at {', '.join(wrong)}. "
+            f"QK4 saved audio settings differ at {', '.join(wrong)}. "
             "Quit QK4, run mise run configure-qk4, then reopen QK4 Vail and connect."
         )
     return expected

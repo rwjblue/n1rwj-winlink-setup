@@ -118,6 +118,11 @@ class StationAudio(AudioVaraIO):
         self.transmit = transmit
         self.lead = cfg["ptt_lead_seconds"]
         self.pending_id = False
+        print(
+            f"Kestrel audio: RX={cfg['rx_device']!r}; TX={cfg['tx_device']!r}; "
+            f"48000 Hz; peak drive={cfg['amplitude']}",
+            flush=True,
+        )
 
     def key(self, on):
         if on and not self.transmit:

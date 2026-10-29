@@ -59,6 +59,10 @@ def main():
         "native_mode": {key: native[key] for key in ("MD", "DT", "BW", "TQ")},
         "audio_devices": [cfg["rx_device"], cfg["tx_device"]],
         "qk4_saved_devices": qk4_devices,
+        "audio_drive": {
+            "kestrel_peak": cfg["amplitude"],
+            "qk4_mic_gain": cfg["qk4_mic_gain"],
+        },
     }
     print(json.dumps(result, indent=2))
     if radio[-1] != "0":
