@@ -43,13 +43,11 @@ to at least 3 kHz and keep TX EQ, VOX, noise reduction/blanking and automatic
 notch off. These other radio DSP settings have not been automated or qualified.
 QK4's amplifier integration was disabled during the first trial.
 
-For initial Winlink tests, select the band in QK4 and keep VFO B on the same
-band as A. The [K4 operating manual](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4%20Built-In%20Operating%20Manual%20rev%20D14/K4BuiltInOperatingManualrevD14.html)
-documents a shared-antenna constraint: the transmit VFO's low-pass filter must
-allow the other receiver's band. A lower transmit band can conflict with a
-higher receive band. The `VFO B Different Band` menu setting also matters.
-Sub audio volume zero does not turn the sub receiver off. QK4's current CAT
-`SB;` reply is a fixed placeholder, so do not use it to prove SUB is disabled.
+Pat's normal QSY path changes frequency without selecting a radio mode.
+The launcher selects DATA-A only at startup, so a later band change can
+recall that band's previous mode. Select DATA-A normal and an RX filter of
+at least 2.8 kHz in QK4 after changing bands, or restart the station on the
+new band. `doctor` checks the result without changing it.
 
 The link test requires stable QK4 frequency, DATA-A normal, an RX filter of at least 2.8 kHz
 and split/RIT/XIT off before CONNECT, and rejects transient optimistic UI state.

@@ -143,17 +143,14 @@ DSP settings and PTT timing still need radio-path qualification.
 DATA-A uses upper sideband on 40m as well as 20m; the 40m voice LSB convention
 does not apply to these VARA dial frequencies. Do not select DATA-A reverse,
 AFSK, FSK or PSK submodes. Pat's Connect action tunes frequency; it does not
-select the radio mode. If you change mode after startup, restart the station
-or select DATA-A normal with an RX filter of at least 2.8 kHz in QK4 and verify with `mise run doctor`.
+select the radio mode. A band change can recall that band's last-used mode;
+the launcher currently selects DATA-A only at startup. After changing bands
+or mode, select DATA-A normal with an RX filter of at least 2.8 kHz in QK4
+and verify with `mise run doctor`, or restart the station on the new band.
 
 Startup saves the previous native mode/submode/filter/frequency under
 `.local/logs/radio-before-data-a-*.json`. Stopping leaves DATA-A selected.
 See [mode checks and rollback](docs/SETUP.md#data-a-and-mode-rollback).
-
-Select the band in QK4 first. Keep both VFOs on that band for initial tests:
-when receivers share an antenna, the transmit band's low-pass filter can
-prevent reception on a higher-frequency sub-receiver band. A rejected CAT
-band change can briefly appear in QK4's cached state before reverting.
 
 ```sh
 mise run start
