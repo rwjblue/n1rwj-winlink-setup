@@ -1,13 +1,13 @@
-# Station evidence — 2026-10-28
+# Station evidence — 2026-10-29
 
 **Current state: DATA-A normal is selected and the station is running
 receive-only with QK4 Vail. Live receive, local TX cable fidelity, and outgoing
 network audio with the K4 RF output inhibited in TX TEST have been verified.
 Drive is calibrated at Kestrel peak 0.35 with QK4 mic gain 25: the real modem
 waveform reached ALC 4 on both 40m and 20m with forward power zero.
-Earlier RF trials used USB. No DATA-A on-air RMS link or HF message transfer
-is claimed. Project `.env` credentials are loaded, but authentication remains
-untested. The operator is continuing gateway connectivity testing.**
+A bounded DATA-A RF attempt reached a gateway response but did not complete
+link setup. No HF message transfer is claimed. Project `.env` credentials are
+loaded, but authentication remains untested.**
 
 Test environment: Apple Silicon arm64 macOS; mise Python 3.14.4, Go 1.26.2,
 uv 0.11.7; Pat v1.0.0 at the pinned source revision; hfmodem/hfhost/creance
@@ -33,6 +33,74 @@ uv 0.11.7; Pat v1.0.0 at the pinned source revision; hfmodem/hfhost/creance
 | Interlocks/configuration | 48 local tests pass, covering credentials, DATA-A/submode/filter validation, band recall ordering, routing/gain drift, TX TEST confirmation, drive overrides, real waveform normalization, zero-forward-power telemetry, cancellation and independent unkey. | `mise run check` |
 | Modem regression | 37 upstream host lifecycle and BW2300 codec tests passed. Synthetic payload recovery is not independent RF evidence. | Commands below |
 | Failure shutdown | SIGKILL to the live receive-only Kestrel process caused all five station listener ports to close; normal restart reattached Pat. | Supervisor log; deliberate manual fault injection |
+
+## Kestrel handshake investigation — 2026-10-29
+
+The existing receive recording contains valid initial responses from N1MVA
+and KB1YNT, but no final ACK in twelve link-setup reply windows. Synthetic
+ACKs injected into those windows decode in all twelve controls. This locates
+the observed failure after the gateway's initial answer; it does not identify
+whether the gateway received the caller-ID frame or sent an ACK that was
+lost. The receive path was silent during a later smoke test; after the
+operator corrected the audio route, passive receive capture was healthy.
+
+Further checks used no RF:
+
+| Check | Result | Private evidence |
+|---|---|---|
+| Independent modem sessions | Kestrel initiated full sessions with pinned Xara v0.1.1 (`2e96fcd`), transferring 64 bytes each way and disconnecting at both BW2300 and BW500. | `.local/logs/xara-session-20261029T142110Z/` |
+| Exact N1RWJ link-setup frames | Xara decoded the exact payload in all eight direct/modeled-QK4 cases at BW2300 levels 2/4 and BW500 levels 1/4. | `.local/logs/xara-exact-setup/result.json` |
+| Real TX Loopback cable | All four captured frames decoded independently. Output matched the rendered Float32 source, with no dropped/clipped samples. The configured tail left about 120 ms after the cable waveform ended. Real QK4's gate remained closed; every radio poll reported TQ0. | `.local/logs/tx-cable-linksetup/analysis.json` |
+| Actual QK4 audio engine in isolation | Unchanged pinned AudioEngine code captured the real cable through Qt, resampled 48 to 12 kHz, applied cubic mic gain and encoded EM0 packets to files. All four payloads decoded with normalized receiver gain. No source endpoints were missing; packets retained 107–111 ms after each signal. No radio/network connection was opened by the harness. | `.local/logs/qk4-tx-probe/analysis.json` |
+| Installed QK4 and K4 network input | With positively verified K4 TX TEST, both the initial connect waveform and full BW2300 level-4 caller-ID frame completed at 7.101 MHz, drive 0.35 and mic gain 25. Both reached ALC 4, compression stayed zero, and all 46/72 forward-meter samples were zero. Receive and original settings were restored. | `.local/logs/radio-linksetup-test/retry/` |
+
+The first new caller-ID diagnostic reached its inherited five-second guard
+deadline during cleanup. The diagnostic now budgets six seconds for its
+4.363-second waveform, lead/tail and drain; both cases then passed. This was
+a diagnostic limit, not the normal station's 30-second guard or an explanation
+for the earlier gateway failure. `mise run tx-test --radio-test-mode
+--signal vara-link-setup` previews the repeatable check without I/O.
+
+No malformed caller-ID frame, TX cable truncation or isolated QK4 encoder
+failure was reproduced. These checks do not measure the radiated waveform,
+installed-app/network jitter or remote reception. Polled TQ includes the
+radio's status holdoff and is not a calibrated RF edge. Local validation:
+105 tests and all 35 mise tasks passed.
+
+### Operator-approved RF attempt
+
+After the operator explicitly approved the test, one 45-second attempt called
+KB1YNT on 7.101 MHz, BW500, DATA-A normal with PC050H (50 W) unchanged.
+Pat's refreshed RMS list confirmed KB1YNT on that dial frequency. Four
+acquisition bursts drew a valid level-4 response matching all 15 payload
+tones. Kestrel then sent two level-4 caller-ID frames, asking greeting levels
+6 and 3 respectively. Neither produced a detected connected ACK. The
+independent deadline stopped the stack; TQ0, the original settings and a
+healthy receive-only station with diagnostics were confirmed afterward.
+
+Both live caller-ID sources and the real TX cable recordings independently
+decoded to identical CRC-valid payloads with Xara. All six cable bursts
+matched their source, without dropped or clipped samples. CAT key commands
+preceded their cable audio by 235–250 ms; unkey followed the complete cable
+audio by 119–131 ms. The radio reported nonzero forward power during every
+burst, peak ALC 3 on both caller-ID frames (4 on acquisition), and compression
+zero. The returned audio resumed 285–345 ms after the caller-ID cable ended.
+Neither the ACK preamble nor the whole-frame matcher found an ACK in the
+five-second windows, including the early samples before normal host polling.
+
+This reproduces the gateway failure with measured local cable/PTT timing
+and actual RF output. It does not prove what waveform arrived at the gateway
+or whether an ACK was transmitted while local receive audio was unavailable.
+The remaining discriminating evidence is independent reception of the
+outgoing RF, or comparison with stock VARA through the same radio path.
+Do not infer a confirmed Kestrel defect or change drive/timing on this result
+alone. Another RF attempt needs its own explicit operator approval.
+
+Private evidence: `.local/logs/rf-handshake-20261029T144845Z/` contains the
+attempt result, both cable recordings with per-block clocks, CAT telemetry,
+source-to-cable/ACK analysis and independent decoded payloads. Rendered
+sources are in `.local/recordings/kestrel-20261029T144856101999Z/`; the
+modem's receive recording is `.local/recordings/rx-20261029T144855Z.wav`.
 
 ## Automatic mode after Pat QSY — 2026-10-29
 
