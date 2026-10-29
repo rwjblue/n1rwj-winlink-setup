@@ -12,7 +12,7 @@ import urllib.request
 
 from qk4_cat import (
     operating_state,
-    require_five_watt_limit,
+    native_power,
     restore_frequency,
     wait_for_receive,
 )
@@ -140,7 +140,7 @@ def main():
     plan = {
         "url": args.url,
         "maximum_attempt_seconds": args.seconds,
-        "power_limit_w": 5,
+        "power": "radio's current setting (unchanged)",
         "stop_after": "HF link is observed, or the attempt deadline; mail authentication is deferred",
     }
     print(json.dumps(plan, indent=2), flush=True)
@@ -152,7 +152,6 @@ def main():
     state = json.loads((LOCAL / "station.json").read_text())
     if not state.get("transmit"):
         raise SystemExit("Start the approved foreground RF station first")
-    print(f"Power readback: {require_five_watt_limit():.1f} W", flush=True)
     initial = api("status")
     if initial.get("connected") or initial.get("dialing"):
         raise SystemExit("An exchange is already active; refusing to interrupt it")
@@ -166,8 +165,9 @@ def main():
             outcome["connect_result"] = str(error)
 
     with tuned_frequency(frequency) as hz:
-        # Band changes can recall a different per-band power setting.
-        require_five_watt_limit()
+        # Report the selected band's setting without imposing a power policy.
+        outcome["power_readback"] = native_power().decode()
+        print(f"Power readback: {outcome['power_readback']} (radio controlled)", flush=True)
         worker = threading.Thread(target=connect, daemon=True)
         connected = False
         expired = threading.Event()
@@ -192,14 +192,13 @@ def main():
         try:
             while worker.is_alive() and time.monotonic() < deadline:
                 status = api("status")
-                require_five_watt_limit()
                 require_frequency(hz)
                 if status.get("connected"):
                     connected = True
                     break
                 time.sleep(0.25)
         except BaseException as error:
-            # Loss of telemetry, power violation or frequency drift closes
+            # Loss of telemetry or frequency drift closes
             # the CAT gate immediately, without another normal over or ID.
             stop_rf_stack()
             if not expired.is_set() or isinstance(

@@ -64,7 +64,7 @@ remain under the adjacent `backups` directory outside the repository.
 ## Remaining gates
 
 1. Complete a valid bounded RMS attempt after stable band/frequency selection.
-   Use the operator's running QK4 Vail; antenna testing at 5 W is authorized.
+   Use the operator's running QK4 Vail and radio-selected power setting.
 2. Verify independent deadline shutdown on the live RF path. A receive-only
    deadline drill closed all five listeners and confirmed TQ0.
 3. Qualify leading/trailing waveforms and physical unkey on an interrupted

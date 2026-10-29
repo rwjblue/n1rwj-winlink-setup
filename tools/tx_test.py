@@ -53,14 +53,14 @@ def main():
         "dial_hz": dial_hz,
         "mode": "USB",
         "filter_hz": 2800,
-        "power_limit_w": 5,
+        "power": "radio's current setting (unchanged)",
         "tone_hz": 1500,
         "signal": f"CW {cfg['callsign']} at 20 WPM",
         "signal_seconds": cwid.duration(cfg["callsign"], wpm=20),
         "audio_peak": min(cfg["amplitude"], 0.05),
         "tx_device": cfg["tx_device"],
         "maximum_key_seconds": 5,
-        "restore": "frequency, mode, bandwidth and RF power after confirmed unkey",
+        "restore": "frequency, mode and bandwidth after confirmed unkey",
         "requirements": "Explicit RF approval and confirmation of antenna or dummy load",
         "load": "operator-approved antenna" if args.antenna_confirmed else "dummy load",
     }
@@ -107,7 +107,6 @@ def main():
     processes = []
     logs = []
     snapshot = None
-    saved_power = None
     telemetry = []
     telemetry_stop = threading.Event()
     monitor = None
@@ -185,16 +184,14 @@ def main():
         if original[-1] != "0":
             raise RuntimeError("Radio already transmitting; test refused")
         snapshot = original
-        saved_power = native_power()
         (LOCAL / "tx-test-before.json").write_text(
-            json.dumps({"radio": original, "power": saved_power.decode()})
+            json.dumps({"radio": original, "power": native_power().decode()})
         )
         rig("M", "USB", "2800", "F", str(dial_hz))
-        power = native_power(b"PC050L")  # K4 QRP units are tenths of a watt.
+        print(f"RF power readback: {native_power().decode()} (radio controlled)", flush=True)
         readback = rig("f", "m", "t")
         if (
             readback[:3] != [str(dial_hz), "USB", "2800"]
-            or power != b"PC050L"
             or readback[-1] != "0"
         ):
             raise RuntimeError(f"Test settings did not read back correctly: {readback}")
@@ -258,8 +255,6 @@ def main():
             emergency_unkey()
             if snapshot:
                 rig("M", snapshot[1], snapshot[2], "F", snapshot[0])
-                if saved_power is not None and native_power(saved_power) != saved_power:
-                    raise RuntimeError("Power restoration readback failed")
                 print("Restored radio settings:", rig("f", "m", "t"))
         finally:
             for process in processes:

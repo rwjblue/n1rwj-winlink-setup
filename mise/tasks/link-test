@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-#MISE description="Plan or explicitly execute one bounded 5 W VARA RMS link test"
+#MISE description="Plan or explicitly execute one bounded VARA RMS link test"
 set -euo pipefail
 exec .venv/bin/python tools/link_test.py "$@"

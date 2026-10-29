@@ -63,9 +63,9 @@ Pat -> rigctld :4532 -> CAT guard :9300 -> QK4 :9299 -> K4
 All listeners bind to loopback. Pat owns PTT (`ptt_ctrl=true`); Hamlib model
 2047 sends `TX;`/`RX;` to QK4's audio gate. Audio alone does not open the gate.
 Native K4 power readback is used because Hamlib's K3-style power setters are
-incompatible with this route. RF startup requires a positive QRP setting
-at or below 5 W. The standalone test temporarily sets native `PC050L` and
-restores the original setting.
+incompatible with this route. Set RF power in QK4/K4; startup, link tests and
+the standalone transmit test use the radio's current setting. Power readback
+is informational, with no software ceiling or automatic power writes.
 
 Closing CW identification finishes before DISCONNECTED is reported, allowing
 Pat to restore frequency afterward. This ordering was observed live with Vail.

@@ -28,7 +28,8 @@ class Policy(unittest.TestCase):
             self.assertFalse(allowed(command), command)
         self.assertTrue(allowed(b"TX", True))
         self.assertFalse(allowed(b"TX/", True))
-        self.assertFalse(allowed(b"PC005", True))
+        for command in (b"PC005", b"PC050L", b"PC050H"):
+            self.assertFalse(allowed(command, True))
 
     def test_status_and_frequency_commands(self):
         for command in (

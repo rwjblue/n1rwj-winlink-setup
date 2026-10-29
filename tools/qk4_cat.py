@@ -1,4 +1,4 @@
-"""Native K4 power frames, avoiding Hamlib's incompatible K3 power setters."""
+"""Read native K4 state and request receive without changing RF power."""
 
 import re
 import socket
@@ -7,14 +7,10 @@ import time
 from station_config import config
 
 
-def native_power(set_frame=None):
+def native_power():
     cfg = config()
-    if set_frame is not None and not re.fullmatch(rb"PC\d{3}[HLX]", set_frame):
-        raise ValueError("Invalid native K4 power frame")
     with socket.create_connection((cfg["qk4_host"], cfg["qk4_port"]), timeout=2) as cat:
         cat.settimeout(2)
-        if set_frame is not None:
-            cat.sendall(set_frame + b";")
         cat.sendall(b"PC;")
         pending = b""
         while True:
@@ -28,15 +24,6 @@ def native_power(set_frame=None):
                 frame, pending = pending.split(b";", 1)
                 if re.fullmatch(rb"PC\d{3}[HLX]", frame):
                     return frame
-
-
-def require_five_watt_limit():
-    frame = native_power()
-    if frame[-1:] != b"L" or not 0 < int(frame[2:5]) <= 50:
-        raise RuntimeError(
-            f"RF startup requires QK4 QRP power from 0.1 to 5.0 W; got {frame.decode()}"
-        )
-    return int(frame[2:5]) / 10
 
 
 def operating_state():

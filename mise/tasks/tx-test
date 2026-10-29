@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Plan an identified 5 W RF check; execution requires operator approval"
+#MISE description="Plan an identified RF check; execution requires operator approval"
 #MISE hide=true
 set -euo pipefail
 exec .venv/bin/python tools/tx_test.py "$@"

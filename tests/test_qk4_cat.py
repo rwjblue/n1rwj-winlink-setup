@@ -1,10 +1,10 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from qk4_cat import require_five_watt_limit, wait_for_receive
+from qk4_cat import native_power, wait_for_receive
 
 
-class PowerLimit(unittest.TestCase):
+class RadioReadback(unittest.TestCase):
     def test_unkey_readback_polls_past_initial_transmit_state(self):
         cat = MagicMock()
         cat.recv.side_effect = [b"TQ1;", b"TQ", b"0;"]
@@ -24,13 +24,14 @@ class PowerLimit(unittest.TestCase):
             connect.return_value.__enter__.return_value = cat
             wait_for_receive()
 
-    def test_accepts_only_positive_qrp_settings_at_or_below_five_watts(self):
-        for frame, watts in [(b"PC050L", 5), (b"PC001L", 0.1)]:
-            with patch("qk4_cat.native_power", return_value=frame):
-                self.assertEqual(require_five_watt_limit(), watts)
-        for frame in [b"PC051L", b"PC075H", b"PC000L", b"PC050X"]:
+    def test_reads_radio_selected_power_without_writing_or_limiting_it(self):
+        for frame in (b"PC050H", b"PC100H", b"PC051L", b"PC000L", b"PC050X"):
+            cat = MagicMock()
+            cat.recv.side_effect = [frame[:3], frame[3:] + b";"]
             with (
-                patch("qk4_cat.native_power", return_value=frame),
-                self.assertRaises(RuntimeError),
+                self.subTest(frame=frame),
+                patch("socket.create_connection") as connect,
             ):
-                require_five_watt_limit()
+                connect.return_value.__enter__.return_value = cat
+                self.assertEqual(native_power(), frame)
+            cat.sendall.assert_called_once_with(b"PC;")

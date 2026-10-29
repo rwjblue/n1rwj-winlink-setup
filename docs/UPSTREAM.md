@@ -33,13 +33,13 @@ This behavior was also checked in the installed app's `1d7de138` source.
 Power control needs different treatment. The installed Hamlib 4.7.2 K4
 backend shares [K3-style power SET formatting](https://github.com/Hamlib/Hamlib/blob/4.7.2/rigs/kenwood/k3.c),
 whereas [QK4 passes native K4 PC commands](https://github.com/mikeg-dal/QK4/blob/72025dfeea15fb31759c8dd03a6146912a6ca648/src/network/catframes.cpp).
-The test therefore uses native `PC050L` (50 tenths = 5.0 W), requires that exact
-readback, and restores the original native power frame. It does not use
-Hamlib's normalized RFPOWER setter. Power writes remain blocked in the
-ordinary CAT guard. Native SET/readback to 5.0 W and restoration to the
-original 75 W setting were verified with TQ0 throughout and no generated
-audio. Subsequent antenna testing verified RF output near the 5 W setting;
-see STATUS for the internal meter values and their limitations.
+The launchers therefore query native `PC;` for information and leave RF power
+under QK4/K4 control. They impose no software ceiling and never send power
+SET commands. Power writes remain blocked in the ordinary CAT guard.
+Earlier tests temporarily used native `PC050L` (50 tenths = 5.0 W), verified
+readback, and restored the original 75 W setting with TQ0 throughout and no
+generated audio. Subsequent antenna testing verified RF output near the 5 W
+setting; see STATUS for the internal meter values and their limitations.
 
 The simulated-radio bench exercised actual Pat -> actual Hamlib -> guard ->
 simulated QK4 commands. Tests also cover client disconnect, an overlong key,

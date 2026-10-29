@@ -39,7 +39,7 @@ class LinkTestPlanning(unittest.TestCase):
                     ],
                 ),
                 patch("link_test.LOCAL", local),
-                patch("link_test.require_five_watt_limit", return_value=5),
+                patch("link_test.native_power", return_value=b"PC050H"),
                 patch("link_test.operating_state", return_value=previous),
                 patch("link_test.api", return_value={}) as api,
                 patch(
@@ -95,7 +95,7 @@ class LinkTestPlanning(unittest.TestCase):
         with (
             patch("sys.argv", ["link_test", "varahf:///KB8AY?bw=2750&freq=7100"]),
             patch("link_test.api") as api,
-            patch("link_test.require_five_watt_limit") as power,
+            patch("link_test.native_power") as power,
             contextlib.redirect_stdout(io.StringIO()),
         ):
             link_test.main()
@@ -109,7 +109,7 @@ class LinkTestPlanning(unittest.TestCase):
                 ["link_test", "varahf:///KB8AY?bw=2750&freq=7100", "--execute"],
             ),
             patch("link_test.api") as api,
-            patch("link_test.require_five_watt_limit") as power,
+            patch("link_test.native_power") as power,
             contextlib.redirect_stdout(io.StringIO()),
             contextlib.redirect_stderr(io.StringIO()),
             self.assertRaises(SystemExit),

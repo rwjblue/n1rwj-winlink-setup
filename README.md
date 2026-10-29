@@ -106,13 +106,14 @@ this checks loading, not whether Winlink accepts the password.
 
 ## An approved RF session
 
-The operator authorized the existing resonant 40m/20m antenna at a 5 W setting
-for this testing session on 2026-10-28. This superseded the initial dummy-load
-requirement. Later operation requires the operator's authorization.
+The operator authorized the existing resonant 40m/20m antenna and use of the
+radio's selected power setting for this setup. Earlier recorded RF tests used
+5 W; the software no longer imposes that limit.
 
 Connect QK4, select USB with an appropriate filter, disable speech compression
-and TX EQ, and confirm the native QRP setting is at most 5 W. DSP settings and
-PTT timing still need radio-path qualification.
+and TX EQ, and select the desired RF power in QK4/K4. Startup reports the native
+power setting without changing it. DSP settings and PTT timing still need
+radio-path qualification.
 
 Select the band in QK4 first. Keep both VFOs on that band for initial tests:
 when receivers share an antenna, the transmit band's low-pass filter can
@@ -138,8 +139,8 @@ mise run link-test -- 'varahf:///KB8AY?bw=2750&freq=7100' --execute --approved-t
 ```
 
 The link test requires a second of stable frequency/mode readback before
-CONNECT, with split/RIT/XIT off, and rechecks power after tuning. It monitors
-frequency and power throughout. An independent 45-second timer closes the
+CONNECT, with split/RIT/XIT off, and reports the radio's power after tuning.
+It monitors frequency throughout. An independent 45-second timer closes the
 whole RF stack; it does not rely on Pat cancelling a queued busy-channel dial.
 Successful HF connections are disconnected before stack shutdown. Original
 dial frequency is restored after receive readback. The RF terminal exits at
