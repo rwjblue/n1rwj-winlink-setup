@@ -240,7 +240,12 @@ def main():
                 state.exists()
                 and json.loads(state.read_text()).get("pid") == process.pid
             ):
-                print("Receive-only station ready")
+                print(
+                    "Receive-only station ready: read/compose at "
+                    f"http://127.0.0.1:{config()['http_port']}/ui\n"
+                    "For HF connections: mise run stop, then "
+                    "mise run transmit -- --approved-transmit"
+                )
                 return
             time.sleep(0.1)
         raise SystemExit("Startup still pending; inspect .local/logs/supervisor.log")

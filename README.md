@@ -160,6 +160,14 @@ See [source and audio findings](docs/UPSTREAM.md) for details.
 ## Troubleshooting and maintenance
 
 Start with `mise run doctor`, `.local/logs/supervisor.log` and the child logs.
+`connect: connection refused` on `127.0.0.1:8300` means Kestrel is stopped;
+restart the complete station, rather than Pat alone. `mise run start` is
+receive-only: its modem rejects outgoing connections and incoming ARQ replies
+without closing the mailbox or TCP ports. Pat currently labels that rejected
+connection `connect timeout`; `.local/logs/kestrel.log` explains the mode.
+To exchange mail over HF, run `mise run stop`, then
+`mise run transmit -- --approved-transmit` and use the UI's Connect form.
+
 For a callsign/config problem, run `mise run pat -- env`: it must report
 `N1RWJ`, `FN41fr` and paths inside this checkout. If bare `pat` still reports
 home paths, refresh mise's shell environment or use `mise run pat -- …`.

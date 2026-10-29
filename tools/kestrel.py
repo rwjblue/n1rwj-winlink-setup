@@ -19,6 +19,26 @@ from hfmodem.core import cwid  # noqa: E402
 
 
 class WinlinkModem(VaraHostModem):
+    def connect(self, src, dst, vias=None):
+        if not getattr(self._transport, "transmit", False):
+            print(
+                "Receive-only: CONNECT refused; start an RF session with "
+                "mise run transmit -- --approved-transmit",
+                flush=True,
+            )
+            # Pat ignores WRONG while dialing and waits for a link outcome.
+            # HostSession sends OK before this staged DISCONNECTED callback.
+            self.observer.modem_disconnected()
+            return
+        return super().connect(src, dst, vias)
+
+    def set_listen(self, on):
+        if on and not getattr(self._transport, "transmit", False):
+            # VARA LISTEN answers incoming calls; it is not passive monitoring.
+            # HostSession converts this supported refusal into WRONG.
+            raise ValueError("Receive-only: incoming ARQ replies disabled")
+        return super().set_listen(on)
+
     def start(self, observer):
         modem = self
 
