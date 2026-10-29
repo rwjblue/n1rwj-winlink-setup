@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 #MISE description="Use Pat with this project configuration"
+#MISE raw_args=true
 set -euo pipefail
 exec ./bin/pat "$@"

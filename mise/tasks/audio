@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 #MISE description="Inspect, record or measure the station's Loopback cables"
 #MISE hide=true
+#USAGE arg "<command>" help="Audio diagnostic to run" {
+#USAGE   choices "devices" "record" "cable"
+#USAGE }
+#USAGE flag "--seconds <seconds>" default="10" help="Recording duration in seconds"
+#USAGE flag "--output <file>" help="Optional recording path, relative to the project"
+#USAGE flag "--direction <direction>" default="rx" help="Loopback cable to use" {
+#USAGE   choices "rx" "tx"
+#USAGE }
 set -euo pipefail
 exec .venv/bin/python tools/audio.py "$@"

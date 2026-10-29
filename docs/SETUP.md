@@ -5,11 +5,11 @@
 The saved local radio profile on this Mac is profile **1**. Configure sets
 **EM0 uncompressed 24-bit**, **SL0** (20 ms), CAT on loopback port 9299,
 mono mixing off and sub volume zero. Authentication is preserved. For another
-saved profile, use `mise run configure-qk4 -- --profile 2` while QK4 is closed.
+saved profile, use `mise run configure-qk4 --profile 2` while QK4 is closed.
 On a new Mac, create the radio connection in QK4's Server Manager first.
 This Mac's local profile uses `192.168.7.25:9204`, TLS, and identity `N1RWJ`;
 enter its existing password through QK4. Preview changes at any time with
-`mise run configure-qk4 -- --dry-run` (no preferences changed).
+`mise run configure-qk4 --dry-run` (no preferences changed).
 
 | Direction | QK4 device | Kestrel device |
 |---|---|---|
@@ -92,20 +92,20 @@ mise run check
 mise run bench-ptt                    # Actual Pat/Hamlib, simulated radio; no RF/audio
 mise run codec-bench                  # Offline raw/Opus comparison
 mise run qt-audio-probe               # Exact Qt format support
-mise run audio -- devices
-mise run audio -- record --seconds 10 --output .local/rx.wav
+mise run audio devices
+mise run audio record --seconds 10 --output .local/rx.wav
 mise run receive-check                # DATA-A/Pat QSY at current dial, record, restore
-mise run receive-check -- --dial-khz 7100  # Optional different test dial; no keying
-mise run audio -- cable --direction tx # QK4 gate forced closed before local tone
+mise run receive-check --dial-khz 7100  # Optional different test dial; no keying
+mise run audio cable --direction tx # QK4 gate forced closed before local tone
 ```
 
 For RX cable injection, stop the station and disconnect/quit QK4 first, then
-run `mise run audio -- cable --direction rx`. For silent receive, check QK4's
+run `mise run audio cable --direction rx`. For silent receive, check QK4's
 connection/output, cable Pass-Thru, left-channel routing and volume. QK4's
 `NO RX AUDIO` log means Qt rejected the device format.
 
 `receive-check` requires a receive-only station. Run `mise run stop`, then
-`mise run start -- --receive-only` before this diagnostic. Normal `mise run start`
+`mise run start --receive-only` before this diagnostic. Normal `mise run start`
 enables transmission; stop and start again without the option to resume HF mail.
 
 Use `doctor` for health checks: probing port 8300 with netcat attaches a modem
@@ -117,7 +117,7 @@ Its conservative channel classifier may refuse to transmit on a noisy channel.
 
 ```sh
 mise run stop
-mise run tx-test -- --execute --approved-transmit --antenna-confirmed
+mise run tx-test --execute --approved-transmit --antenna-confirmed
 ```
 
 Use this only within the operator's RF authorization. Normal live unkeying
@@ -129,7 +129,7 @@ station and enable the K4's TX TEST mode. Confirm the active TEST indicator
 beside the VFO, rather than the permanent TEST caption under XMIT. Then run:
 
 ```sh
-mise run tx-test -- --execute --radio-test-mode --dial-khz 7055
+mise run tx-test --execute --radio-test-mode --dial-khz 7055
 ```
 
 This variant positively checks the radio-reported VFO indicator through
@@ -156,8 +156,8 @@ TX TEST, and confirm the VFO's active TEST indicator before executing:
 
 ```sh
 mise run calibrate-audio                                  # Plan, no I/O
-mise run calibrate-audio -- --execute --dial-khz 7101       # Sweep 40m
-mise run calibrate-audio -- --execute --dial-khz 14101.5 --peaks 0.35
+mise run calibrate-audio --execute --dial-khz 7101       # Sweep 40m
+mise run calibrate-audio --execute --dial-khz 14101.5 --peaks 0.35
 ```
 
 The default waveform is the upstream Kestrel BW2300 connect request to
@@ -179,7 +179,7 @@ now honors configured drive; its former hard-coded 5 percent clamp is removed.
 For a single diagnostic level without changing defaults:
 
 ```sh
-mise run tx-test -- --execute --radio-test-mode --dial-khz 7101 \
+mise run tx-test --execute --radio-test-mode --dial-khz 7101 \
   --signal vara-connect --audio-peak 0.35
 ```
 

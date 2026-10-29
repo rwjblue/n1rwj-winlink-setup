@@ -1,5 +1,17 @@
 #!/usr/bin/env bash
 #MISE description="Plan an identified audio check; RF execution requires operator approval"
 #MISE hide=true
+#USAGE flag "--execute" help="Run the test (default: print a plan)"
+#USAGE flag "--approved-transmit" help="Confirm operator approval for this RF test"
+#USAGE flag "--dummy-load-confirmed" help="Confirm the dummy load is connected"
+#USAGE flag "--antenna-confirmed" help="Confirm the approved antenna is connected"
+#USAGE flag "--radio-test-mode" help="Require verified K4 TX TEST with RF inhibited"
+#USAGE flag "--dial-khz <khz>" default="14101.5" help="Test dial frequency in kHz"
+#USAGE flag "--signal <signal>" default="cw" help="Test waveform (vara-connect requires TX TEST)" {
+#USAGE   choices "cw" "vara-connect"
+#USAGE }
+#USAGE flag "--audio-peak <peak>" help="Temporary TX TEST peak drive above 0 up to 1"
+#USAGE flag "--amplifier-bypassed" help="Confirm the amplifier is bypassed"
+#USAGE flag "--unkey" help="Emergency RX only; never keys"
 set -euo pipefail
 exec .venv/bin/python tools/tx_test.py "$@"

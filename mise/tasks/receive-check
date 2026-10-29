@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Verify DATA-A receive audio and Pat QSY, then restore radio settings"
 #MISE hide=true
+#USAGE flag "--dial-khz <khz>" help="Test dial frequency in kHz (default: current radio dial)"
 set -euo pipefail
-exec .venv/bin/python tools/receive_check.py
+exec .venv/bin/python tools/receive_check.py "$@"

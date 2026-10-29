@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
 #MISE description="Plan or measure audio drive with the K4 in TX TEST (no RF)"
+#USAGE flag "--execute" help="Measure in confirmed K4 TX TEST (default: print a plan)"
+#USAGE flag "--dial-khz <khz>" help="Calibration dial frequency in kHz (default: current radio dial)"
+#USAGE flag "--signal <signal>" default="vara-connect" help="Calibration waveform" {
+#USAGE   choices "cw" "vara-connect"
+#USAGE }
+#USAGE flag "--peaks <peaks>..." help="Ascending peak drives above 0 up to 1 (default: standard sweep)"
 set -euo pipefail
 exec .venv/bin/python tools/calibrate_audio.py "$@"

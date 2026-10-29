@@ -19,16 +19,16 @@ uv 0.11.7; Pat v1.0.0 at the pinned source revision; hfmodem/hfhost/creance
 | Area | Observation | Reproduce |
 |---|---|---|
 | Dependency setup | Pinned tools installed; project venv sync reran successfully. Fresh upstream checkout also materializes its files. | `mise run setup` |
-| Project configuration | Actual Pat resolves N1RWJ/FN41fr and local config/mailbox paths from a fresh copy of checked-in files, with reused installed runtimes and no ignored configuration. Both mise task and repo PATH launcher work. | `mise run config`, `mise run pat -- env`, `mise exec -- pat env` |
-| Pat/Kestrel | Pat reports `VARA modem (4.9.0.KestrelOpen) initialized`; HTTP status lists `varahf`. Both TCP ports attached. | `mise run start -- --receive-only`, `mise run doctor` |
+| Project configuration | Actual Pat resolves N1RWJ/FN41fr and local config/mailbox paths from a fresh copy of checked-in files, with reused installed runtimes and no ignored configuration. Both mise task and repo PATH launcher work. | `mise run config`, `mise run pat env`, `mise exec -- pat env` |
+| Pat/Kestrel | Pat reports `VARA modem (4.9.0.KestrelOpen) initialized`; HTTP status lists `varahf`. Both TCP ports attached. | `mise run start --receive-only`, `mise run doctor` |
 | CAT reads | Hamlib K4 model 2047 reads frequency, mode, bandwidth and PTT through guarded QK4 CAT. | `mise run doctor` |
 | Pat frequency selection | Pat QSY at 7.055 MHz DATA-A normal, 3 kHz RX; native MD6/DT0/BW0300 and TQ0 matched before/after receive capture. | `mise run receive-check` |
 | Native power setting | `PC050L` read back as 5.0 W; original `PC075H` was restored. TQ0 was verified before, during and after; no audio or key-up generated. | Controlled native CAT check; archived `logs/power-check.log` |
 | Live RX | Ten seconds of DATA-A EM0/SL0 K4 audio through QK4/Loopback at 48 kHz. Main RMS -34.84 dBFS, peak -19.60 dBFS, no clipped samples. | `mise run receive-check` |
 | Exact QK4 format | Qt accepts 12 kHz stereo Float32; QK4 log confirms it opened `K4 RX to WSJT-X` with that format. | `mise run qt-audio-probe` and app logs |
-| RX cable conversion | 12->48 kHz chirp, gain 0.999333, residual SNR 63.0 dB, estimated latency 16.02 ms, no stream errors. QK4 was disconnected for the injected cable signal. | `mise run audio -- cable --direction rx` |
-| TX cable | 48 kHz chirp, gain 1.0, residual SNR 132.41 dB, estimated latency 16.0 ms, no stream errors. QK4 gate closed; receive readback before/after. | `mise run audio -- cable --direction tx` |
-| DATA-A outgoing audio | In confirmed K4 TX TEST, QK4 captured the TX cable at 48 kHz mono and converted 4:1 to 12 kHz. A 3.78-second CW ID produced 50 logical-TX samples; all 67 forward-meter samples were zero. TQ0 and DATA-A/3 kHz were restored; PC050H was unchanged. | `mise run tx-test -- --execute --radio-test-mode --dial-khz 7055` |
+| RX cable conversion | 12->48 kHz chirp, gain 0.999333, residual SNR 63.0 dB, estimated latency 16.02 ms, no stream errors. QK4 was disconnected for the injected cable signal. | `mise run audio cable --direction rx` |
+| TX cable | 48 kHz chirp, gain 1.0, residual SNR 132.41 dB, estimated latency 16.0 ms, no stream errors. QK4 gate closed; receive readback before/after. | `mise run audio cable --direction tx` |
+| DATA-A outgoing audio | In confirmed K4 TX TEST, QK4 captured the TX cable at 48 kHz mono and converted 4:1 to 12 kHz. A 3.78-second CW ID produced 50 logical-TX samples; all 67 forward-meter samples were zero. TQ0 and DATA-A/3 kHz were restored; PC050H was unchanged. | `mise run tx-test --execute --radio-test-mode --dial-khz 7055` |
 | Pat/Hamlib PTT bench | Actual Hamlib selected PKTUSB/2800, producing MD6/DT0 through the guard. Pat then produced TX/RX/TX/RX on a simulated K4. Key ~1.19 ms; unkey ~1.03 ms; 0.5 s deadman unkey passed. No real radio/audio opened. | `mise run bench-ptt` |
 | Interlocks/configuration | 48 local tests pass, covering credentials, DATA-A/submode/filter validation, band recall ordering, routing/gain drift, TX TEST confirmation, drive overrides, real waveform normalization, zero-forward-power telemetry, cancellation and independent unkey. | `mise run check` |
 | Modem regression | 37 upstream host lifecycle and BW2300 codec tests passed. Synthetic payload recovery is not independent RF evidence. | Commands below |

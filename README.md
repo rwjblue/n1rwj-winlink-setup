@@ -18,9 +18,9 @@ Loopback cables are `K4 RX to WSJT-X` and `WSJT-X TX to K4`.
 mise trust
 mise run setup
 mise run config             # Shows N1RWJ / FN41fr and the configuration paths
-mise run pat -- env         # Confirms Pat sees this repo's identity and paths
+mise run pat env         # Confirms Pat sees this repo's identity and paths
 # Quit QK4 first; its existing preferences are backed up before changes.
-mise run configure-qk4 -- --dry-run  # Optional preview; safe while QK4 is open
+mise run configure-qk4 --dry-run  # Optional preview; safe while QK4 is open
 mise run configure-qk4
 ```
 
@@ -50,9 +50,9 @@ or answer incoming calls. Set the desired RF power in QK4/K4 before starting.
 Use the project launcher for other Pat commands:
 
 ```sh
-mise run pat -- rmslist --mode varahf --band 20m   # Internet query, no RF
-mise run pat -- help compose
-mise run pat -- read
+mise run pat rmslist --mode varahf --band 20m   # Internet query, no RF
+mise run pat help compose
+mise run pat read
 ```
 
 With mise shell activation, `pat` inside this repo resolves to `bin/pat` and
@@ -166,7 +166,7 @@ leave a dial queued behind BUSY.
 For a bounded **radio-link-only** diagnostic while the station is running:
 
 ```sh
-mise run link-test -- 'varahf:///KB8AY?bw=2750&freq=7100' --execute --approved-transmit
+mise run link-test 'varahf:///KB8AY?bw=2750&freq=7100' --execute --approved-transmit
 ```
 
 The link test selects DATA-A again after tuning and requires a second of
@@ -190,7 +190,7 @@ keys to 30 seconds. Direct QK4 controls and unrelated clients remain independent
 See [source and audio findings](docs/UPSTREAM.md) for details.
 
 For receive-only diagnostics, stop the station and run
-`mise run start -- --receive-only`. This independently blocks RF connections,
+`mise run start --receive-only`. This independently blocks RF connections,
 keying and transmit audio while keeping the mailbox available for reading and
 composing. `mise run receive-check` requires this mode. Stop and start without
 the option to return to normal operation.
@@ -210,16 +210,17 @@ replies without closing the mailbox or TCP ports. Pat currently labels that
 rejected connection `connect timeout`; `.local/logs/kestrel.log` explains the
 mode. Run `mise run stop`, then `mise run start` to enable HF connections.
 
-For a callsign/config problem, run `mise run pat -- env`: it must report
+For a callsign/config problem, run `mise run pat env`: it must report
 `N1RWJ`, `FN41fr` and paths inside this checkout. If bare `pat` still reports
-home paths, refresh mise's shell environment or use `mise run pat -- …`.
+home paths, refresh mise's shell environment or use `mise run pat …`.
 To refresh a cached gateway list, add `--force-download` to the `rmslist` command.
 
 `mise run check` tests local configuration and interlocks without RF. Advanced
 audio, codec and simulated-PTT diagnostics are in [SETUP](docs/SETUP.md).
 The same document explains preference backups and rollback.
 
-`mise tasks ls --local` lists the everyday tasks. After stopping the station,
+`mise tasks ls --local` lists the everyday tasks; `mise run <task> --help`
+describes each task's arguments. After stopping the station,
 `mise run clean` moves logs, recordings and loose test artifacts into a private
 timestamped archive under
 `~/Library/Application Support/n1rwj-winlink-setup/archives`. It preserves

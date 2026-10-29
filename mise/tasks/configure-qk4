@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 #MISE description="Back up and set QK4 Loopback/raw audio preferences (app closed)"
 #MISE depends=["qt-audio-probe"]
+#USAGE flag "--profile <index>" default="1" help="QK4 saved radio index, starting at 1"
+#USAGE flag "--restore <file>" help="Restore a previous preference backup"
+#USAGE flag "--dry-run" help="Preview settings without changing preferences"
 set -euo pipefail
 exec .venv/bin/python tools/qk4_settings.py "$@"
