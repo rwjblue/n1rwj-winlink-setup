@@ -1,7 +1,14 @@
 import asyncio
+from pathlib import Path
+import re
+import shutil
+import sys
+import tempfile
+import time
 import unittest
 
 from cat_guard import Guard, allowed
+from station_config import ROOT
 
 
 class Policy(unittest.TestCase):
@@ -115,3 +122,64 @@ class Ownership(unittest.IsolatedAsyncioTestCase):
         await self.writer.drain()
         await asyncio.wait_for(self.disconnected.wait(), 1)
         self.assertEqual(self.received, [])
+
+
+class ProcessShutdown(unittest.IsolatedAsyncioTestCase):
+    async def test_sigterm_unkeys_and_exits_with_a_client_still_connected(self):
+        received = []
+        disconnected = asyncio.Event()
+
+        async def radio(reader, writer):
+            try:
+                while frame := await reader.readuntil(b";"):
+                    received.append(frame)
+                    if frame == b"FA;":
+                        writer.write(b"FA00007100000;")
+                        await writer.drain()
+            except asyncio.IncompleteReadError:
+                pass
+            finally:
+                writer.close()
+                disconnected.set()
+
+        server = await asyncio.start_server(radio, "127.0.0.1", 0)
+        process = writer = None
+        try:
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                (root / "tools").mkdir()
+                (root / "config").mkdir()
+                for name in ("cat_guard.py", "station_config.py"):
+                    shutil.copy2(ROOT / "tools" / name, root / "tools" / name)
+                shutil.copy2(ROOT / "config/station.toml", root / "config/station.toml")
+                (root / "config/station.local.toml").write_text(
+                    f"qk4_port = {server.sockets[0].getsockname()[1]}\ncat_guard_port = 0\n"
+                )
+                process = await asyncio.create_subprocess_exec(
+                    sys.executable,
+                    str(root / "tools/cat_guard.py"),
+                    "--approved-transmit",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                ready = await asyncio.wait_for(process.stdout.readline(), 3)
+                port = int(re.search(rb"port=(\d+)", ready)[1])
+                reader, writer = await asyncio.open_connection("127.0.0.1", port)
+                writer.write(b"TX;FA;")
+                await writer.drain()
+                await asyncio.wait_for(reader.readuntil(b";"), 1)
+                start = time.monotonic()
+                process.terminate()
+                await asyncio.wait_for(process.wait(), 1)
+                await asyncio.wait_for(disconnected.wait(), 1)
+                self.assertLess(time.monotonic() - start, 1)
+                self.assertEqual(received, [b"TX;", b"FA;", b"RX;"])
+                self.assertEqual(process.returncode, 0)
+        finally:
+            if writer:
+                writer.close()
+            if process and process.returncode is None:
+                process.kill()
+                await process.wait()
+            server.close()
+            await server.wait_closed()

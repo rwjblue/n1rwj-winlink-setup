@@ -140,12 +140,20 @@ async def main(args):
     server = await asyncio.start_server(
         guard.session, "127.0.0.1", cfg["cat_guard_port"], limit=4096
     )
-    print(f"CAT guard ready; transmit={guard.transmit}", flush=True)
+    print(
+        f"CAT guard ready; transmit={guard.transmit}; port={server.sockets[0].getsockname()[1]}",
+        flush=True,
+    )
     async with server:
         await stop.wait()
-    for task in list(guard.sessions):
-        task.cancel()
-    await asyncio.gather(*guard.sessions, return_exceptions=True)
+        # Python 3.14 waits for active clients in Server.__aexit__. Cancel
+        # them first so their finally blocks send RX and close upstream CAT.
+        # Doing this after __aexit__ deadlocks until the supervisor kills us.
+        server.close()
+        sessions = list(guard.sessions)
+        for task in sessions:
+            task.cancel()
+        await asyncio.gather(*sessions, return_exceptions=True)
 
 
 if __name__ == "__main__":

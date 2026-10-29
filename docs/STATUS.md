@@ -26,7 +26,7 @@ QK4 was reused rather than rebuilt or replaced.
 | RX cable conversion | 12->48 kHz chirp, gain 0.999333, residual SNR 63.0 dB, estimated latency 16.02 ms, no stream errors. QK4 was disconnected for the injected cable signal. | `mise run audio -- cable --direction rx` |
 | TX cable | 48 kHz chirp, gain 1.0, residual SNR >130 dB, estimated latency 16.0 ms, no stream errors. QK4 gate explicitly closed. | `mise run audio -- cable --direction tx` |
 | Pat/Hamlib PTT bench | Actual Pat and Hamlib produced TX/RX/TX/RX on a simulated K4. Key notification to CAT ~1.33 ms; unkey ~0.70 ms. Missing OFF forced unkey at the bench's 0.5 s deadline. No audio/radio opened. | `mise run bench-ptt` |
-| Interlocks/configuration | Twenty-seven local tests pass, including transient tune rejection, split/RIT/XIT refusal, live-dial cancellation detection, fresh configuration, environment isolation, receive-only policy/deadman and closing-ID ordering. | `mise run check` |
+| Interlocks/configuration | Twenty-eight local tests pass, including SIGTERM with a connected CAT client, transient tune rejection, split/RIT/XIT refusal, live-dial cancellation detection, fresh configuration, environment isolation and receive-only policy/deadman. | `mise run check` |
 | Modem regression | 37 upstream host lifecycle and BW2300 codec tests passed. Synthetic payload recovery is not independent RF evidence. | Commands below |
 | Failure shutdown | SIGKILL to the live receive-only Kestrel process caused all five station listener ports to close; normal restart reattached Pat. | Supervisor log; deliberate manual fault injection |
 
@@ -161,3 +161,19 @@ Private evidence: `.local/logs/vail-*.json*`, `.local/logs/pat.log`,
 `.local/logs/kestrel.log`, and `.local/recordings/rx-20261029T012436Z.wav`.
 The recording has 114 seconds of receive audio; the capture reported no xruns
 or TX underruns. No CRC-valid received VARA frame has been established.
+
+At 21:36–21:37 Eastern, K0SI on 7.1003 MHz/BW2300 passed stable tuning,
+remained BUSY, and was stopped by the independent deadline. All 654 sampled
+TQ frames were receive; dial frequency returned to 7.100 MHz.
+
+At 21:40–21:41 Eastern, K0BBQ on 7.0895 MHz/BW500 passed stable tuning and
+began connect requests when its channel cleared. No HF CONNECTED was observed.
+The internal meter peaked at 5.2 W, ALC 0, CMP 3 dB and SWR 1.0:1 with PC050L.
+The deadline request fired at 01:41:37.500 UTC, but the last TQ1 sample was
+3.44 seconds later. The guard's async server context waited for active clients
+before reaching the code that cancelled those clients; the supervisor then
+killed the stuck guard after its three-second grace period. Session cancellation
+has been moved inside the server context, before waiting for closure. An actual
+child-process regression test proves SIGTERM sends RX and exits with the CAT
+client still connected. Live confirmation of the corrected shutdown timing
+remains pending. Receive recording: `rx-20261029T014034Z.wav` (66 seconds).
