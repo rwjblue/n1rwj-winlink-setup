@@ -86,6 +86,53 @@ class ReceiveOnly(unittest.TestCase):
 
 
 class AudioPath(unittest.TestCase):
+    def test_peer_closing_id_precedes_disconnected_and_abort_cancels_it(self):
+        for abort in (False, True):
+            with self.subTest(abort=abort):
+                events = []
+                observer = Mock()
+                observer.modem_ptt.side_effect = lambda on: events.append(("ptt", on))
+                observer.modem_disconnected.side_effect = lambda: events.append(
+                    ("disconnected", None)
+                )
+                modem = StationModem(transmit=True)
+                modem.set_mycall("N0CALL")
+                modem.start(observer)
+                observer.modem_newstate.reset_mock()
+                modem.audio_out = lambda samples: events.append(("audio", True))
+                try:
+                    modem._identify_on_close("peer_disc")
+                    modem._observer.modem_disconnected()
+                    modem._observer.modem_newstate("DISC")
+                    observer.modem_disconnected.assert_not_called()
+                    observer.modem_newstate.assert_not_called()
+                    modem.tick(4)
+                    self.assertEqual(events, [])
+                    if abort:
+                        modem.abort()
+                        modem.tick(6)
+                        self.assertEqual(events, [("disconnected", None)])
+                    else:
+                        modem.tick(6)
+                        self.assertEqual(
+                            events,
+                            [
+                                ("ptt", True),
+                                ("audio", True),
+                                ("ptt", False),
+                                ("disconnected", None),
+                            ],
+                        )
+                    self.assertFalse(modem.identification_pending)
+                    observer.modem_newstate.assert_called_once_with("DISC")
+                finally:
+                    modem.stop()
+
+    def test_forced_bandwidth_is_rejected_instead_of_silently_calling_max(self):
+        modem = StationModem(transmit=True)
+        with self.assertRaisesRegex(ValueError, "MAX"):
+            modem.set_bandwidth(2000, True)
+
     def test_real_12khz_frame_uses_limited_stereo_48khz_between_ptt_edges(self):
         events = []
         modem = StationModem(transmit=True)

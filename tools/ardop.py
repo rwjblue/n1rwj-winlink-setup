@@ -23,6 +23,62 @@ class StationModem(BesraModem):
     def __init__(self, *, transmit=False, **kwargs):
         super().__init__(**kwargs)
         self.transmit_enabled = transmit
+        self._deferred_disconnect = False
+        self._pat_observer = None
+
+    def start(self, observer, **kwargs):
+        modem = self
+        self._pat_observer = observer
+
+        class IdentifiedObserver:
+            def __getattr__(self, name):
+                return getattr(observer, name)
+
+            def modem_disconnected(self):
+                # On a peer DISC, Besra schedules ID five seconds later.
+                # Pat must not QSX away from this channel before it finishes.
+                if modem.identification_pending:
+                    modem._deferred_disconnect = True
+                else:
+                    observer.modem_disconnected()
+
+            def modem_newstate(self, state):
+                # wl2k-go also closes the stream on NEWSTATE DISC, so both
+                # completion signals must stay behind the closing waveform.
+                if state == "DISC" and (
+                    modem.identification_pending or modem._deferred_disconnect
+                ):
+                    return
+                observer.modem_newstate(state)
+
+        return super().start(IdentifiedObserver(), **kwargs)
+
+    def _notify_disconnected(self):
+        if self._deferred_disconnect and not self.identification_pending:
+            self._deferred_disconnect = False
+            self._pat_observer.modem_newstate("DISC")
+            self._pat_observer.modem_disconnected()
+
+    def tick(self, now):
+        with self._lock:
+            super().tick(now)
+            self._notify_disconnected()
+
+    def abort(self):
+        with self._lock:
+            super().abort()
+            self._notify_disconnected()
+
+    def stop(self):
+        self._deferred_disconnect = False
+        return super().stop()
+
+    def set_bandwidth(self, hz, forced):
+        # The pinned ARQ caller always selects CONREQ_MAX, even when the host
+        # accepts FORCED. Refuse that mismatch rather than silently negotiate.
+        if forced:
+            raise ValueError("Pinned Besra supports MAX bandwidth negotiation only")
+        return super().set_bandwidth(hz, forced)
 
     def require_transmit(self):
         if not self.transmit_enabled:
