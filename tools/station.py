@@ -97,7 +97,7 @@ def run_stack(transmit=False):
                 if stopping or stop.exists():
                     raise RuntimeError("Startup cancelled")
                 ready = (
-                    marker in path.read_text(errors="replace")[offset:]
+                    marker in path.read_bytes()[offset:].decode("utf-8", errors="replace")
                     if marker
                     else port_open(port)
                 )
