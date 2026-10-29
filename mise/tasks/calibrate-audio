@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Plan or measure audio drive with the K4 in TX TEST (no RF)"
+set -euo pipefail
+exec .venv/bin/python tools/calibrate_audio.py "$@"

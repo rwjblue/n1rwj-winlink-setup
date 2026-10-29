@@ -18,7 +18,7 @@ import time
 
 import numpy as np
 import sounddevice as sd
-from hfmodem.core import cwid
+from hfmodem.core import cwid, levels
 from hfmodem.core.busy import is_busy
 from hfmodem.core.occupied import occupied_hz
 
@@ -32,6 +32,17 @@ from qk4_cat import (
 from station import LOCAL
 from station_config import ROOT, config
 from qk4_test_mode import require_radio_test_mode
+
+
+def test_waveform(callsign, kind, peak):
+    if kind == "vara-connect":
+        from hfmodem.kestrel.vara import vara_frames, vara_mfsk
+
+        samples = vara_mfsk.synth_burst("N0CALL", vara_frames.connect_request("2300"))
+    else:
+        samples = cwid.audio(callsign, wpm=20, tone_hz=1500, fs=48000)
+    # Match AudioVaraIO.tx(): normalize each rendered burst to its configured peak.
+    return levels.at_drive(samples, peak)
 
 
 def emergency_unkey():
@@ -65,11 +76,25 @@ def main():
         help="Off-air: requires the K4 TX TEST indicator, verified through QK4 Vail",
     )
     parser.add_argument("--dial-khz", type=float, default=14101.5)
+    parser.add_argument("--signal", choices=("cw", "vara-connect"), default="cw")
+    parser.add_argument(
+        "--audio-peak",
+        type=float,
+        help="Temporary peak drive for TX TEST calibration (0 < peak <= 1)",
+    )
     parser.add_argument("--amplifier-bypassed", action="store_true")
     parser.add_argument(
         "--unkey", action="store_true", help="Emergency RX only; never keys"
     )
     args = parser.parse_args()
+    if args.signal != "cw" and not args.radio_test_mode:
+        parser.error("The VARA calibration waveform requires --radio-test-mode")
+    if args.audio_peak is not None and (
+        not args.radio_test_mode or not 0 < args.audio_peak <= 1
+    ):
+        parser.error(
+            "--audio-peak requires --radio-test-mode and a value above 0 up to 1"
+        )
     cfg = config()
     dial_hz = round(args.dial_khz * 1000)
     if not (7000000 <= dial_hz <= 7300000 or 14000000 <= dial_hz <= 14350000):
@@ -77,15 +102,19 @@ def main():
     if args.unkey:
         emergency_unkey()
         return
+    peak = cfg["amplitude"] if args.audio_peak is None else args.audio_peak
+    samples = test_waveform(cfg["callsign"], args.signal, peak)
     plan = {
         "dial_hz": dial_hz,
         "mode": "DATA-A normal (Hamlib PKTUSB; MD6/DT0)",
         "minimum_rx_filter_hz": 2800,
         "power": "radio's current setting (unchanged)",
         "tone_hz": 1500,
-        "signal": f"CW {cfg['callsign']} at 20 WPM",
-        "signal_seconds": cwid.duration(cfg["callsign"], wpm=20),
-        "audio_peak": min(cfg["amplitude"], 0.05),
+        "signal": f"CW {cfg['callsign']} at 20 WPM"
+        if args.signal == "cw"
+        else "Kestrel BW2300 connect request to N0CALL (off-air)",
+        "signal_seconds": len(samples) / 48000,
+        "audio_peak": peak,
         "tx_device": cfg["tx_device"],
         "maximum_key_seconds": 5,
         "restore": "frequency, mode and bandwidth after confirmed unkey",
@@ -116,6 +145,7 @@ def main():
         raise SystemExit("Stop the normal station before the standalone transmit test")
     for port in (cfg["cat_guard_port"], cfg["rigctld_port"], 8300, 8301):
         with socket.socket() as check:
+            check.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             check.bind(("127.0.0.1", port))
 
     def rig(*command):
@@ -251,13 +281,6 @@ def main():
             )
             if busy:
                 raise RuntimeError("Channel occupied; antenna transmission refused")
-        samples = cwid.audio(
-            cfg["callsign"],
-            wpm=20,
-            tone_hz=1500,
-            fs=48000,
-            amplitude=plan["audio_peak"],
-        )
         stereo = np.repeat(samples[:, None], 2, axis=1)
         # Open/prime output with silence before asserting PTT. Pat is absent;
         # this test process is the only PTT controller.
