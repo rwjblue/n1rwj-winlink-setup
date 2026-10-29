@@ -6,6 +6,7 @@ import urllib.request
 
 import sounddevice as sd
 
+from qk4_cat import DATA_A_BANDWIDTH, is_data_a, operating_state
 from station import LOCAL
 from station_config import config
 
@@ -48,15 +49,21 @@ def main():
         .strip()
         .splitlines()
     )
+    native = operating_state()
     result = {
         "transmit_enabled": status["transmit"],
         "active_listeners": api["active_listeners"],
         "radio": radio,
+        "native_mode": {key: native[key] for key in ("MD", "DT", "BW", "TQ")},
         "audio_devices": [cfg["rx_device"], cfg["tx_device"]],
     }
     print(json.dumps(result, indent=2))
     if radio[-1] != "0":
         raise SystemExit("Radio reports transmit; use mise run unkey if unexpected")
+    if not is_data_a(native) or int(native["BW"]) * 10 < DATA_A_BANDWIDTH:
+        raise SystemExit(
+            "Expected DATA-A normal, RX >=2800 Hz; restart the station to select it"
+        )
     if "varahf" not in api["active_listeners"]:
         raise SystemExit("Pat VARA listener not ready; inspect .local/logs")
 

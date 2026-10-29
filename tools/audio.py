@@ -11,6 +11,7 @@ import numpy as np
 import sounddevice as sd
 from scipy import signal
 
+from qk4_cat import wait_for_receive
 from station_config import ROOT, config
 
 
@@ -42,7 +43,9 @@ def capture(seconds, name, output):
             wav.setsampwidth(2)
             wav.setframerate(rate)
             wav.writeframes((np.clip(data, -1, 1) * 32767).astype("<i2").tobytes())
-    print(json.dumps({"device": name, **stats(data, rate)}, indent=2))
+    result = {"device": name, **stats(data, rate)}
+    print(json.dumps(result, indent=2))
+    return result
 
 
 def cable(name, rate):
@@ -50,13 +53,11 @@ def cable(name, rate):
         raise SystemExit("Cable tests require the named station Loopback devices")
     # RX cable tests require QK4 stopped: two writers would mix and invalidate
     # fidelity measurements. TX cable tests first force the QK4 gate closed.
-    import socket
-
     if name == config()["tx_device"]:
-        with socket.create_connection(
-            (config()["qk4_host"], config()["qk4_port"]), timeout=2
-        ) as cat:
-            cat.sendall(b"RX;")
+        state = ROOT / ".local/station.json"
+        if state.exists() and json.loads(state.read_text())["transmit"]:
+            raise SystemExit("Stop the RF station before injecting cable test audio")
+        wait_for_receive(request_rx=True)
     source_rate = rate
     capture_rate = 48000
     t = np.arange(source_rate) / source_rate
@@ -120,6 +121,8 @@ def cable(name, rate):
             if not completed.wait(5):
                 raise TimeoutError("Audio cable playback stalled")
         time.sleep(0.3)
+    if name == config()["tx_device"]:
+        wait_for_receive()
     actual = np.concatenate(captured)
     divisor = math.gcd(capture_rate, source_rate)
     expected = signal.resample_poly(

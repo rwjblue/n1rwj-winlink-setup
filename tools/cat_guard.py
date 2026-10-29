@@ -15,11 +15,13 @@ import time
 from station_config import config
 
 
-# Only status queries and the settings required for VFO A USB operation.
+# Only status queries and settings needed for VFO A DATA-A and mode restoration.
 QUERIES = set(
     "ID IF FA FB MD MD$ BW BW$ DT DT$ FR FT TQ AI K2 K3 RVM RVD RVP OM PS KS RT XT RO PC".split()
 )
-SETTINGS = re.compile(rb"(?:FA\d{8,11}|MD[123456789]|BW\d{4}|AI[0-4]|K[234][0-2])")
+SETTINGS = re.compile(
+    rb"(?:FA\d{8,11}|MD[123456789]|DT[0-3]|BW\d{4}|AI[0-4]|K[234][0-2])"
+)
 
 
 def allowed(command, transmit=False):

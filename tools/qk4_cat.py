@@ -2,9 +2,89 @@
 
 import re
 import socket
+import subprocess
 import time
 
 from station_config import config
+
+DATA_A_MODE = "PKTUSB"  # Hamlib: native K4 MD6;DT0; (normal, upper sideband).
+DATA_A_BANDWIDTH = 2800
+
+
+def rig(*args):
+    return (
+        subprocess.check_output(
+            ["rigctl", "-m", "2", "-r", f"127.0.0.1:{config()['rigctld_port']}", *args],
+            text=True,
+            timeout=8,
+        )
+        .strip()
+        .splitlines()
+    )
+
+
+def is_data_a(state):
+    return state.get("MD") == "6" and state.get("DT") == "0"
+
+
+def _wait_mode(expected, timeout=5):
+    deadline = time.monotonic() + timeout
+    matching_since = None
+    while time.monotonic() < deadline:
+        state = operating_state()
+        now = time.monotonic()
+        if state["TQ"] != "0":
+            raise RuntimeError("Radio keyed during mode change")
+        if all(state[key] == value for key, value in expected.items()):
+            if matching_since is None:
+                matching_since = now
+            if now - matching_since >= 1:
+                return state
+        else:
+            matching_since = None
+        time.sleep(0.1)
+    raise RuntimeError(f"Radio mode did not settle at {expected}; got {state}")
+
+
+def select_data_a():
+    """Select normal DATA-A through guarded Hamlib; never tunes or keys."""
+    before = operating_state()
+    if before["TQ"] != "0":
+        raise RuntimeError("Radio transmitting; DATA-A selection refused")
+    expected = {"MD": "6", "DT": "0", "BW": f"{DATA_A_BANDWIDTH // 10:04d}"}
+    if not is_data_a(before):
+        rig("M", DATA_A_MODE, str(DATA_A_BANDWIDTH))
+    selected = _wait_mode({"MD": "6", "DT": "0"})
+    if int(selected["BW"]) * 10 >= DATA_A_BANDWIDTH:
+        return selected
+    # Hamlib sends BW before DT. The K4 recalls its data filter after DT0,
+    # so set BW again only after the mode/submode has actually settled.
+    cfg = config()
+    with socket.create_connection((cfg["qk4_host"], cfg["qk4_port"]), timeout=2) as cat:
+        cat.sendall(f"BW{expected['BW']};".encode())
+        return _wait_mode(expected)
+
+
+def restore_mode(state):
+    """Restore exact native mode/submode/filter after receive is confirmed."""
+    expected = {key: state[key] for key in ("MD", "BW")}
+    if not re.fullmatch(r"[12345679]", expected["MD"]) or not re.fullmatch(
+        r"\d{4}", expected["BW"]
+    ):
+        raise ValueError("Invalid saved K4 mode/filter")
+    frames = [f"MD{expected['MD']}"]
+    if expected["MD"] in ("6", "9"):
+        if not re.fullmatch(r"[0-3]", state["DT"]):
+            raise ValueError("Invalid saved K4 data submode")
+        expected["DT"] = state["DT"]
+        frames += [f"DT{state['DT']}", f"MD{state['MD']}"]
+    wait_for_receive()
+    cfg = config()
+    with socket.create_connection((cfg["qk4_host"], cfg["qk4_port"]), timeout=2) as cat:
+        cat.sendall((";".join(frames) + ";").encode())
+        _wait_mode({key: value for key, value in expected.items() if key != "BW"})
+        cat.sendall(f"BW{expected['BW']};".encode())
+        return _wait_mode(expected)
 
 
 def native_power():
@@ -32,6 +112,8 @@ def operating_state():
     patterns = {
         "FA": rb"FA\d{11}",
         "MD": rb"MD\d",
+        "DT": rb"DT[0-3]",
+        "BW": rb"BW\d{4}",
         "FT": rb"FT[01]",
         "RT": rb"RT[01]",
         "XT": rb"XT[01]",
@@ -41,7 +123,7 @@ def operating_state():
     deadline = time.monotonic() + 2
     with socket.create_connection((cfg["qk4_host"], cfg["qk4_port"]), timeout=2) as cat:
         cat.settimeout(0.5)
-        cat.sendall(b"FA;MD;FT;RT;XT;TQ;")
+        cat.sendall(b"FA;MD;DT;BW;FT;RT;XT;TQ;")
         pending = b""
         while time.monotonic() < deadline:
             try:

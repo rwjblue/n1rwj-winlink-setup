@@ -1,23 +1,13 @@
-"""Temporarily tune via Pat, record receive audio, then restore frequency/mode."""
+"""Verify DATA-A receive audio and Pat QSY without enabling transmission."""
 
+import argparse
 import json
-import subprocess
 import urllib.request
 
 from audio import capture
+from link_test import require_frequency
+from qk4_cat import operating_state, restore_frequency, restore_mode, select_data_a
 from station_config import ROOT, config
-
-
-def rig(*args):
-    return (
-        subprocess.check_output(
-            ["rigctl", "-m", "2", "-r", f"127.0.0.1:{config()['rigctld_port']}", *args],
-            text=True,
-            timeout=8,
-        )
-        .strip()
-        .splitlines()
-    )
 
 
 def qsy(khz):
@@ -31,27 +21,40 @@ def qsy(khz):
 
 
 def main():
-    frequency, mode, bandwidth, ptt = rig("f", "m", "t")
-    if ptt != "0":
-        raise SystemExit("Radio is transmitting; receive check refused")
-    snapshot = {"frequency_hz": frequency, "mode": mode, "bandwidth_hz": bandwidth}
-    (ROOT / ".local/radio-before-receive-test.json").write_text(
-        json.dumps(snapshot, indent=2)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--dial-khz",
+        type=float,
+        help="Optional test dial; default is the current frequency",
     )
+    args = parser.parse_args()
+    station = ROOT / ".local/station.json"
+    if not station.exists():
+        raise SystemExit("Station stopped: connect QK4, then mise run start")
+    running = json.loads(station.read_text())
+    if running["transmit"]:
+        raise SystemExit("Use mise run start (receive-only) for this check")
+    before = operating_state()
+    if before["TQ"] != "0":
+        raise SystemExit("Radio is transmitting; receive check refused")
+    (ROOT / ".local/radio-before-receive-test.json").write_text(
+        json.dumps(before, indent=2)
+    )
+    hz = round(args.dial_khz * 1000) if args.dial_khz is not None else int(before["FA"])
     try:
-        rig("M", "USB", "2800")
-        qsy(14101.5)
-        readback = rig("f", "m", "t")
-        if readback != ["14101500", "USB", "2800", "0"]:
-            raise RuntimeError(f"Unexpected readback: {readback}")
-        print("Pat QSY verified: 14.1015 MHz USB, 2800 Hz, PTT off")
-        capture(10, config()["rx_device"], ROOT / ".local/receive-raw.wav")
+        qsy(hz / 1000)
+        select_data_a()
+        require_frequency(hz, settle_seconds=5, stable_seconds=1)
+        print(f"Pat QSY verified: {hz} Hz DATA-A normal, RX >=2800 Hz, PTT off")
+        result = capture(10, config()["rx_device"], ROOT / ".local/receive-data-a.wav")
+        if result["rms_dbfs"][0] <= -100 or result["clipped_samples"]:
+            raise RuntimeError("Main receive audio is silent or clipped")
     finally:
-        rig("M", mode, bandwidth)
-        qsy(int(frequency) / 1000)
-        restored = rig("f", "m", "t")
+        restore_frequency(int(before["FA"]))
+        restore_mode(before)
+        restored = operating_state()
         print("Restored:", restored)
-        if restored != [frequency, mode, bandwidth, "0"]:
+        if restored != before:
             raise RuntimeError("Radio restoration readback failed")
 
 

@@ -11,9 +11,12 @@ import urllib.parse
 import urllib.request
 
 from qk4_cat import (
+    DATA_A_BANDWIDTH,
+    is_data_a,
     operating_state,
     native_power,
     restore_frequency,
+    select_data_a,
     wait_for_receive,
 )
 from station import LOCAL
@@ -39,7 +42,8 @@ def require_frequency(hz, settle_seconds=0, stable_seconds=0):
         now = time.monotonic()
         if (
             int(state["FA"]) == hz
-            and state["MD"] == "2"
+            and is_data_a(state)
+            and int(state["BW"]) * 10 >= DATA_A_BANDWIDTH
             and all(state[key] == "0" for key in ("FT", "RT", "XT"))
         ):
             if matching_since is None:
@@ -49,7 +53,9 @@ def require_frequency(hz, settle_seconds=0, stable_seconds=0):
         else:
             matching_since = None
         if now >= deadline:
-            raise RuntimeError(f"Expected {hz} Hz USB, split/RIT/XIT off; got {state}")
+            raise RuntimeError(
+                f"Expected {hz} Hz DATA-A normal, RX >=2800 Hz, split/RIT/XIT off; got {state}"
+            )
         time.sleep(0.1)
 
 
@@ -64,9 +70,10 @@ def tuned_frequency(khz):
     hz = round(khz * 1000)
     try:
         api("qsy", json.dumps({"transport": "varahf", "freq": khz}).encode(), timeout=6)
+        select_data_a()  # A band change can recall a different mode/filter.
         require_frequency(hz, settle_seconds=5, stable_seconds=1)
         print(
-            f"Frequency verified before CONNECT: {hz} Hz USB, split/RIT/XIT off",
+            f"Frequency verified before CONNECT: {hz} Hz DATA-A normal, RX >=2800 Hz, split/RIT/XIT off",
             flush=True,
         )
         yield hz
@@ -167,7 +174,10 @@ def main():
     with tuned_frequency(frequency) as hz:
         # Report the selected band's setting without imposing a power policy.
         outcome["power_readback"] = native_power().decode()
-        print(f"Power readback: {outcome['power_readback']} (radio controlled)", flush=True)
+        print(
+            f"Power readback: {outcome['power_readback']} (radio controlled)",
+            flush=True,
+        )
         worker = threading.Thread(target=connect, daemon=True)
         connected = False
         expired = threading.Event()

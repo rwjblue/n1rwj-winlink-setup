@@ -11,7 +11,15 @@ import link_test
 
 class LinkTestPlanning(unittest.TestCase):
     def test_brief_optimistic_frequency_match_is_not_a_settled_tune(self):
-        good = {"FA": "00007100000", "MD": "2", "FT": "0", "RT": "0", "XT": "0"}
+        good = {
+            "FA": "00007100000",
+            "MD": "6",
+            "DT": "0",
+            "BW": "0280",
+            "FT": "0",
+            "RT": "0",
+            "XT": "0",
+        }
         bad = dict(good, FA="00014108500")
         states = iter([good])
         with (
@@ -41,6 +49,7 @@ class LinkTestPlanning(unittest.TestCase):
                 patch("link_test.LOCAL", local),
                 patch("link_test.native_power", return_value=b"PC050H"),
                 patch("link_test.operating_state", return_value=previous),
+                patch("link_test.select_data_a"),
                 patch("link_test.api", return_value={}) as api,
                 patch(
                     "link_test.require_frequency",
@@ -58,7 +67,15 @@ class LinkTestPlanning(unittest.TestCase):
 
     def test_split_and_offsets_refuse_an_otherwise_correct_dial(self):
         for key in ("FT", "RT", "XT"):
-            state = {"FA": "00007100000", "MD": "2", "FT": "0", "RT": "0", "XT": "0"}
+            state = {
+                "FA": "00007100000",
+                "MD": "6",
+                "DT": "0",
+                "BW": "0280",
+                "FT": "0",
+                "RT": "0",
+                "XT": "0",
+            }
             state[key] = "1"
             with (
                 self.subTest(key=key),
@@ -66,6 +83,28 @@ class LinkTestPlanning(unittest.TestCase):
                 self.assertRaises(RuntimeError),
             ):
                 link_test.require_frequency(7100000)
+
+    def test_plain_usb_reverse_data_rtty_and_narrow_filters_are_rejected(self):
+        good = {
+            "FA": "00007100000",
+            "MD": "6",
+            "DT": "0",
+            "BW": "0280",
+            "FT": "0",
+            "RT": "0",
+            "XT": "0",
+        }
+        for changes in ({"MD": "2"}, {"MD": "9"}, {"DT": "1"}, {"BW": "0050"}):
+            with (
+                self.subTest(changes=changes),
+                patch("link_test.operating_state", return_value=good | changes),
+                self.assertRaisesRegex(RuntimeError, "DATA-A normal"),
+            ):
+                link_test.require_frequency(7100000)
+        with patch("link_test.operating_state", return_value=good):
+            self.assertEqual(link_test.require_frequency(7100000), good)
+        with patch("link_test.operating_state", return_value=good | {"BW": "0300"}):
+            self.assertEqual(link_test.require_frequency(7100000)["BW"], "0300")
 
     def test_failed_cancel_requests_supervised_rf_shutdown(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -39,10 +39,14 @@ class Policy(unittest.TestCase):
             b"RVM",
             b"FA00014012300",
             b"MD2",
+            b"MD6",
+            b"DT0",
             b"BW0280",
             b"RX",
         ):
             self.assertTrue(allowed(command), command)
+        for command in (b"DT4", b"DT0;TX", b"DT$0", b"TS1", b"TS/"):
+            self.assertFalse(allowed(command), command)
 
 
 class Ownership(unittest.IsolatedAsyncioTestCase):

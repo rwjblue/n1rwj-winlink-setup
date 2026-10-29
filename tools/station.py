@@ -1,6 +1,7 @@
 """Supervise the station as one unit; default to receive-only."""
 
 import argparse
+import datetime
 import fcntl
 import json
 import os
@@ -12,7 +13,7 @@ import sys
 import time
 
 from station_config import ROOT, config
-from qk4_cat import native_power
+from qk4_cat import native_power, operating_state, select_data_a
 from pat_config import configure, pat_args, pat_environment
 
 LOCAL = ROOT / ".local"
@@ -30,7 +31,10 @@ def run_stack(transmit=False):
     cfg = config()
     pat_env = pat_environment()
     if transmit:
-        print(f"RF power readback: {native_power().decode()} (radio controlled)", flush=True)
+        print(
+            f"RF power readback: {native_power().decode()} (radio controlled)",
+            flush=True,
+        )
     pat_config = json.loads(configure().read_text())
     expected_vara = {"addr": "127.0.0.1:8300", "rig": "qk4", "ptt_ctrl": True}
     expected_rig = {
@@ -136,6 +140,20 @@ def run_stack(transmit=False):
                     "RIG",
                 ],
                 cfg["rigctld_port"],
+            )
+            before = operating_state()
+            snapshot = (
+                LOCAL
+                / "logs"
+                / datetime.datetime.now(datetime.UTC).strftime(
+                    "radio-before-data-a-%Y%m%dT%H%M%S%fZ.json"
+                )
+            )
+            snapshot.write_text(json.dumps(before, indent=2))
+            selected = select_data_a()
+            print(
+                f"QK4 DATA-A normal, RX {int(selected['BW']) * 10} Hz; previous state: {snapshot}",
+                flush=True,
             )
             spawn(
                 "kestrel",

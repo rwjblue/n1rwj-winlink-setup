@@ -34,10 +34,12 @@ waveform quality still needs qualification. QK4's microphone capture opened
 successfully on PTT. Allow macOS microphone access for virtual-device capture
 if prompted. System audio defaults were not changed.
 
-For modem operation use USB, an appropriate filter, and disable speech
-compression, TX EQ, VOX, noise reduction/blanking and automatic notch.
-Radio DSP settings have not been automated or qualified. QK4's amplifier
-integration was disabled during the first trial.
+Station startup selects DATA-A normal and an RX filter of at least 2.8 kHz. Hamlib names
+this `PKTUSB`; native K4 readback must be `MD6; DT0;` with `BW0280;` or wider.
+DATA-A internally disables speech compression. Set the K4 DATA TX bandwidth
+to at least 3 kHz and keep TX EQ, VOX, noise reduction/blanking and automatic
+notch off. These other radio DSP settings have not been automated or qualified.
+QK4's amplifier integration was disabled during the first trial.
 
 For initial Winlink tests, select the band in QK4 and keep VFO B on the same
 band as A. The [K4 operating manual](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4%20Built-In%20Operating%20Manual%20rev%20D14/K4BuiltInOperatingManualrevD14.html)
@@ -47,8 +49,10 @@ higher receive band. The `VFO B Different Band` menu setting also matters.
 Sub audio volume zero does not turn the sub receiver off. QK4's current CAT
 `SB;` reply is a fixed placeholder, so do not use it to prove SUB is disabled.
 
-The link test requires stable QK4 frequency readback, USB and split/RIT/XIT off
-before CONNECT, and rejects transient optimistic UI state. Hamlib caching is
+The link test requires stable QK4 frequency, DATA-A normal, an RX filter of at least 2.8 kHz
+and split/RIT/XIT off before CONNECT, and rejects transient optimistic UI state.
+It reapplies the mode after tuning in case the band recalls another profile.
+Hamlib caching is
 disabled in the supervised rigctld so status reads do not reuse a SET value.
 QK4 still serves its own RadioState cache; this is not an independent RF
 frequency measurement.
@@ -90,7 +94,8 @@ mise run codec-bench                  # Offline raw/Opus comparison
 mise run qt-audio-probe               # Exact Qt format support
 mise run audio -- devices
 mise run audio -- record --seconds 10 --output .local/rx.wav
-mise run receive-check                # Temporary USB QSY, record, restore; no keying
+mise run receive-check                # DATA-A/Pat QSY at current dial, record, restore
+mise run receive-check -- --dial-khz 7100  # Optional different test dial; no keying
 mise run audio -- cable --direction tx # QK4 gate forced closed before local tone
 ```
 
@@ -102,7 +107,8 @@ connection/output, cable Pass-Thru, left-channel routing and volume. QK4's
 Use `doctor` for health checks: probing port 8300 with netcat attaches a modem
 client. `mise run tx-test` prints a plan without network/audio access. Its
 approved execution sends `N1RWJ` in CW at 20 WPM (3.78 seconds) with a
-five-second key deadline and restores frequency, mode, bandwidth and power.
+five-second key deadline and restores frequency, native mode/submode and RX
+bandwidth. It uses the radio's selected power without changing it.
 Its conservative channel classifier may refuse to transmit on a noisy channel.
 
 ```sh
@@ -113,6 +119,34 @@ mise run tx-test -- --execute --approved-transmit --antenna-confirmed
 Use this only within the operator's RF authorization. Normal live unkeying
 has been observed; deliberate interrupted-client RF tests remain unverified.
 See [STATUS](STATUS.md) for the exact evidence boundaries.
+
+## DATA-A and mode rollback
+
+The K4's [operating manual](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4%20Built-In%20Operating%20Manual%20rev%20C22/K4BuiltInOperatingManualrevC22.html)
+describes DATA-A as the generic audio-data mode: normal orientation is USB,
+the dial is the suppressed carrier frequency, and compression is internally
+disabled. The [programmer's reference](https://ftp.elecraft.com/K4/Manuals%20Downloads/K4%20Programmer%27s%20Reference%2C%20rev.%20D5.pdf)
+defines `MD6` as DATA, `MD9` as reverse DATA, and `DT0` as DATA-A.
+
+Startup selects Hamlib `PKTUSB`, waits for stable native mode/submode, then
+widens a narrower RX filter to 2.8 kHz last. Wider operator-selected filters are retained. Hamlib 4.7.2 sends BW before DT; the live K4
+recalled a 2.5 kHz filter after DT0 until the helper reapplied BW0280. A one-second
+stable readback is required. `doctor` checks mode/submode/filter without
+changing them. QK4's CAT server does not return `DW` (DATA TX bandwidth), so
+check that setting on the radio; RX `BW0280` does not prove TX bandwidth.
+
+QK4's microphone stream carries the Loopback TX cable into its existing
+network-audio encoder. Its source selection and PTT gate are independent of
+SSB versus DATA-A. The DATA-A receive test and gate-closed TX cable test do
+not establish RF modulation through the radio in DATA-A; see STATUS for what
+was actually measured. Raw EM0/SL0 and the named Loopback devices are unchanged.
+
+Each startup saves the previous native settings in
+`.local/logs/radio-before-data-a-*.json`; normal stop leaves DATA-A selected.
+To undo the live selection, stop the station and restore the recorded mode,
+data submode (if applicable), frequency and RX filter in QK4. The receive
+check and standalone transmit diagnostic restore their own pre-test settings.
+Reverting the DATA-A commit restores the prior startup behavior.
 
 ## Artifact cleanup
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Verify receive audio and Pat QSY, then restore radio settings"
+#MISE description="Verify DATA-A receive audio and Pat QSY, then restore radio settings"
 #MISE hide=true
 set -euo pipefail
 exec .venv/bin/python tools/receive_check.py

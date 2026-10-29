@@ -20,7 +20,13 @@ from hfmodem.core import cwid
 from hfmodem.core.busy import is_busy
 from hfmodem.core.occupied import occupied_hz
 
-from qk4_cat import native_power, wait_for_receive
+from qk4_cat import (
+    native_power,
+    operating_state,
+    restore_mode,
+    select_data_a,
+    wait_for_receive,
+)
 from station import LOCAL
 from station_config import ROOT, config
 
@@ -51,7 +57,7 @@ def main():
         return
     plan = {
         "dial_hz": dial_hz,
-        "mode": "USB",
+        "mode": "DATA-A normal (Hamlib PKTUSB; MD6/DT0)",
         "filter_hz": 2800,
         "power": "radio's current setting (unchanged)",
         "tone_hz": 1500,
@@ -79,9 +85,7 @@ def main():
             "Execution requires RF approval and antenna confirmation, or dummy load plus amplifier bypass"
         )
     if (LOCAL / "station.json").exists():
-        raise SystemExit(
-            "Stop the normal station before the standalone transmit test"
-        )
+        raise SystemExit("Stop the normal station before the standalone transmit test")
     for port in (cfg["cat_guard_port"], cfg["rigctld_port"], 8300, 8301):
         with socket.socket() as check:
             check.bind(("127.0.0.1", port))
@@ -107,6 +111,7 @@ def main():
     processes = []
     logs = []
     snapshot = None
+    native_snapshot = None
     telemetry = []
     telemetry_stop = threading.Event()
     monitor = None
@@ -184,14 +189,20 @@ def main():
         if original[-1] != "0":
             raise RuntimeError("Radio already transmitting; test refused")
         snapshot = original
+        native_snapshot = operating_state()
         (LOCAL / "tx-test-before.json").write_text(
-            json.dumps({"radio": original, "power": native_power().decode()})
+            json.dumps({"radio": native_snapshot, "power": native_power().decode()})
         )
-        rig("M", "USB", "2800", "F", str(dial_hz))
-        print(f"RF power readback: {native_power().decode()} (radio controlled)", flush=True)
+        rig("F", str(dial_hz))
+        select_data_a()
+        print(
+            f"RF power readback: {native_power().decode()} (radio controlled)",
+            flush=True,
+        )
         readback = rig("f", "m", "t")
         if (
-            readback[:3] != [str(dial_hz), "USB", "2800"]
+            readback[:2] != [str(dial_hz), "PKTUSB"]
+            or int(readback[2]) < 2800
             or readback[-1] != "0"
         ):
             raise RuntimeError(f"Test settings did not read back correctly: {readback}")
@@ -254,7 +265,9 @@ def main():
         try:
             emergency_unkey()
             if snapshot:
-                rig("M", snapshot[1], snapshot[2], "F", snapshot[0])
+                rig("F", snapshot[0])
+                if native_snapshot:
+                    restore_mode(native_snapshot)
                 print("Restored radio settings:", rig("f", "m", "t"))
         finally:
             for process in processes:

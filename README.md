@@ -33,7 +33,8 @@ Follow [hardware and macOS setup](docs/SETUP.md) when configuring another Mac.
 
 1. Open QK4 Vail and connect its saved local K4 profile. Close other modem/CAT clients.
 2. Run `mise run start`. This starts Kestrel, guarded CAT/Hamlib and Pat together,
-   **receive-only**, in the background.
+   **receive-only**, in the background, and selects normal DATA-A with an
+   RX filter of at least 2.8 kHz. Both mode and data submode are checked before Pat starts.
 3. Open [Pat's mailbox](http://127.0.0.1:8080/ui). Read mail or compose a message
    into the outbox. Sending requires the separate RF session described below.
 4. Run `mise run doctor` to check the station, or `mise run status` for its mode.
@@ -110,10 +111,21 @@ The operator authorized the existing resonant 40m/20m antenna and use of the
 radio's selected power setting for this setup. Earlier recorded RF tests used
 5 W; the software no longer imposes that limit.
 
-Connect QK4, select USB with an appropriate filter, disable speech compression
-and TX EQ, and select the desired RF power in QK4/K4. Startup reports the native
-power setting without changing it. DSP settings and PTT timing still need
-radio-path qualification.
+Connect QK4 and select the desired RF power in QK4/K4. Startup selects
+**DATA-A normal** (upper sideband), shown as `PKTUSB` by Hamlib, and an RX filter of at least 2.8 kHz. DATA-A disables speech compression internally. Check that the K4's
+DATA transmit bandwidth passes the modem audio (at least 3 kHz), and keep
+TX EQ and receive noise processing off. Power readback is informational.
+DSP settings and PTT timing still need radio-path qualification.
+
+DATA-A uses upper sideband on 40m as well as 20m; the 40m voice LSB convention
+does not apply to these VARA dial frequencies. Do not select DATA-A reverse,
+AFSK, FSK or PSK submodes. Pat's Connect action tunes frequency; it does not
+select the radio mode. If you change mode after startup, restart the station
+or select DATA-A normal with an RX filter of at least 2.8 kHz in QK4 and verify with `mise run doctor`.
+
+Startup saves the previous native mode/submode/filter/frequency under
+`.local/logs/radio-before-data-a-*.json`. Stopping leaves DATA-A selected.
+See [mode checks and rollback](docs/SETUP.md#data-a-and-mode-rollback).
 
 Select the band in QK4 first. Keep both VFOs on that band for initial tests:
 when receivers share an antenna, the transmit band's low-pass filter can
@@ -138,7 +150,8 @@ For a bounded **radio-link-only** check in another terminal:
 mise run link-test -- 'varahf:///KB8AY?bw=2750&freq=7100' --execute --approved-transmit
 ```
 
-The link test requires a second of stable frequency/mode readback before
+The link test selects DATA-A again after tuning and requires a second of
+stable frequency, mode, submode and RX-filter readback before
 CONNECT, with split/RIT/XIT off, and reports the radio's power after tuning.
 It monitors frequency throughout. An independent 45-second timer closes the
 whole RF stack; it does not rely on Pat cancelling a queued busy-channel dial.

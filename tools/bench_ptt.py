@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 import shutil
 import tempfile
 import time
@@ -34,8 +35,12 @@ async def main():
         b"RVP": b"RVP01.00;",
         b"FA": b"FA00014101500;",
         b"FB": b"FB00014101500;",
-        b"MD": b"MD2;",
+        b"MD": b"MD3;",
+        b"MD$": b"MD$3;",
+        b"DT": b"DT0;",
+        b"DT$": b"DT$0;",
         b"BW": b"BW0280;",
+        b"BW$": b"BW$0280;",
         b"FR": b"FR0;",
         b"FT": b"FT0;",
         b"AI": b"AI0;",
@@ -47,6 +52,9 @@ async def main():
         try:
             while frame := await reader.readuntil(b";"):
                 command = frame[:-1]
+                for prefix in (b"MD", b"DT", b"BW"):
+                    if re.fullmatch(prefix + rb"\d+", command):
+                        replies[prefix] = command + b";"
                 if command in (b"TX", b"RX"):
                     keyed = command == b"TX"
                     events.append((command.decode(), time.monotonic()))
@@ -104,6 +112,25 @@ async def main():
                 )
                 processes.append(rig)
                 await asyncio.sleep(0.4)
+                mode = await asyncio.create_subprocess_exec(
+                    "rigctl",
+                    "-m",
+                    "2",
+                    "-r",
+                    "127.0.0.1:14532",
+                    "M",
+                    "PKTUSB",
+                    "2800",
+                    "m",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                output, error = await asyncio.wait_for(mode.communicate(), 10)
+                if mode.returncode or output.splitlines() != [b"PKTUSB", b"2800"]:
+                    raise RuntimeError(
+                        f"DATA-A bench mode failed: {output!r} {error!r}"
+                    )
+                assert replies[b"MD"] == b"MD6;" and replies[b"DT"] == b"DT0;"
                 with (folder / "pat.log").open("w") as log:
                     pat = await asyncio.create_subprocess_exec(
                         shutil.which("pat"),
@@ -147,6 +174,7 @@ async def main():
                                 "pat_to_cat_unkey_ms": round(unkey_delay * 1000, 2),
                                 "events": [x[0] for x in events],
                                 "deadman_unkey": True,
+                                "mode": "DATA-A normal (MD6/DT0), Hamlib PKTUSB/2800",
                                 "radio": "simulated; no RF or audio devices opened",
                             },
                             indent=2,
