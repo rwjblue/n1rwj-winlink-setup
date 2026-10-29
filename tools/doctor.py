@@ -1,6 +1,7 @@
-"""Read-only station checks; never attaches to Kestrel's command socket."""
+"""Read-only station checks; never attaches to either modem's host sockets."""
 
 import json
+import os
 import subprocess
 import urllib.request
 
@@ -12,6 +13,7 @@ from station import LOCAL
 from cli import run_cli
 
 from station_config import config
+from modems import MODEMS
 
 
 def main():
@@ -20,6 +22,10 @@ def main():
     if not state.exists():
         raise SystemExit("Station stopped: connect QK4, then mise run start")
     status = json.loads(state.read_text())
+    modem = status.get("modem", "vara")
+    transport = MODEMS[modem]["transport"]
+    for name, pid in ({"supervisor": status["pid"]} | status["children"]).items():
+        os.kill(pid, 0)
     qk4_devices = verify_audio_devices()
     for direction in ("rx", "tx"):
         name = cfg[direction + "_device"]
@@ -55,6 +61,7 @@ def main():
     )
     native = operating_state()
     result = {
+        "modem": modem,
         "transmit_enabled": status["transmit"],
         "active_listeners": api["active_listeners"],
         "radio": radio,
@@ -62,7 +69,7 @@ def main():
         "audio_devices": [cfg["rx_device"], cfg["tx_device"]],
         "qk4_saved_devices": qk4_devices,
         "audio_drive": {
-            "kestrel_peak": cfg["amplitude"],
+            "modem_peak": cfg["amplitude"],
             "qk4_mic_gain": cfg["qk4_mic_gain"],
         },
     }
@@ -73,8 +80,10 @@ def main():
         raise SystemExit(
             "Expected DATA-A normal, RX >=2800 Hz; restart the station to select it"
         )
-    if "varahf" not in api["active_listeners"]:
-        raise SystemExit("Pat VARA listener not ready; inspect .local/logs")
+    if api["active_listeners"] != [transport]:
+        raise SystemExit(
+            f"Pat {transport} listener not ready or unexpected listener active; inspect .local/logs"
+        )
 
 
 if __name__ == "__main__":

@@ -9,12 +9,15 @@ from audio import capture
 from link_test import require_frequency
 from qk4_cat import operating_state, restore_frequency, restore_mode, select_data_a
 from station_config import ROOT, config
+from modems import MODEMS, active_modem
 
 
 def qsy(khz):
     request = urllib.request.Request(
         f"http://127.0.0.1:{config()['http_port']}/api/qsy",
-        data=json.dumps({"transport": "varahf", "freq": khz}).encode(),
+        data=json.dumps(
+            {"transport": MODEMS[active_modem()]["transport"], "freq": khz}
+        ).encode(),
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(request, timeout=35) as response:

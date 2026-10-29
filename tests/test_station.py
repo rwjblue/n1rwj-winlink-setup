@@ -19,7 +19,7 @@ class StationStartup(unittest.TestCase):
                 patch("station.run_stack") as run_stack,
             ):
                 station.main()
-            run_stack.assert_called_once_with(transmit=transmit)
+            run_stack.assert_called_once_with(transmit=transmit, modem="vara")
 
     def test_background_start_preserves_mode_in_the_supervisor(self):
         for args, transmit in (([], True), (["--receive-only"], False)):
@@ -87,6 +87,7 @@ class RFStartup(unittest.TestCase):
             )
             with (
                 patch("station.LOCAL", local),
+                patch("station.RESOURCE_LOCK", local / "resource.lock"),
                 patch("station.pat_environment", return_value={}),
                 patch("station.verify_audio_devices"),
                 patch("station.configure", return_value=pat_config),

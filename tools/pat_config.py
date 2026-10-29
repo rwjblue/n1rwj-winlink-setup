@@ -11,10 +11,13 @@ from dotenv import dotenv_values
 from build_pat import ensure_pat
 from cli import ConfigError, run_cli
 from station_config import ROOT, config
+from modems import MODEMS, active_modem
 
 
-def configure(root=None):
+def configure(root=None, modem=None):
     root = root or ROOT
+    modem = modem or active_modem(root)
+    transport = MODEMS[modem]["transport"]
     cfg = config(root)
     template = json.loads((root / "config/pat.json").read_text())
     if template.get("secure_login_password"):
@@ -22,6 +25,7 @@ def configure(root=None):
             "Keep passwords out of config/pat.json; use WINLINK_PASSWORD in .env"
         )
     template.update(
+        listen=[transport],
         mycall=cfg["callsign"],
         locator=cfg["locator"],
         http_addr=f"127.0.0.1:{cfg['http_port']}",
@@ -33,6 +37,9 @@ def configure(root=None):
             }
         },
     )
+    for name, settings in MODEMS.items():
+        if name != modem:
+            template.pop(settings["transport"], None)
     target = root / ".local/pat/config.json"
     for folder in ("pat/mailbox", "pat/forms", "pat/prehooks", "logs"):
         (root / ".local" / folder).mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -58,11 +65,11 @@ def configure(root=None):
     return target
 
 
-def pat_args(log_name="pat-cli"):
+def pat_args(log_name="pat-cli", modem=None):
     return [
         str(ensure_pat()),
         "--config",
-        str(configure()),
+        str(configure(modem=modem)),
         "--mbox",
         str(ROOT / ".local/pat/mailbox"),
         "--forms",

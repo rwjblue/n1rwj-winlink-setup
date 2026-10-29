@@ -56,7 +56,7 @@ def ensure_pat():
         # Pat's UI removes freq= after a failed QSY. A subsequent Connect must
         # still verify mode/filter on the current frequency before any dial.
         connect_check = (
-            '\tif url.Scheme == MethodVaraHF && url.Params.Get("freq") == "" {\n'
+            '\tif (url.Scheme == MethodVaraHF || url.Scheme == MethodArdop) && url.Params.Get("freq") == "" {\n'
             "\t\tif err := stationAfterQSY(int(currFreq)); err != nil {\n"
             '\t\t\tlog.Printf("Unable to prepare DATA-A: %s", err)\n'
             "\t\t\treturn\n\t\t}\n\t}\n\n"

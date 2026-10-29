@@ -17,8 +17,12 @@ from station_config import ROOT, config
 from qk4_cat import native_power, operating_state, select_data_a
 from pat_config import configure, pat_args, pat_environment
 from qk4_settings import verify_audio_devices
+from modems import MODEMS, validate_pat_configuration
 
 LOCAL = ROOT / ".local"
+RESOURCE_LOCK = (
+    pathlib.Path.home() / "Library/Application Support/n1rwj-winlink-setup/station.lock"
+)
 
 
 def port_open(port):
@@ -29,49 +33,54 @@ def port_open(port):
         return False
 
 
-def run_stack(transmit=False, diagnostics=False):
+def run_stack(transmit=False, modem="vara", diagnostics=False):
+    if diagnostics and modem != "vara":
+        raise UserError(
+            "--diagnostics records Kestrel only; use capture-handshake for passive ARDOP capture"
+        )
     cfg = config()
-    pat_env = pat_environment()
-    verify_audio_devices()
-    if transmit:
-        print(
-            f"RF power readback: {native_power().decode()} (radio controlled)",
-            flush=True,
-        )
-    pat_config = json.loads(configure().read_text())
-    expected_vara = {"addr": "127.0.0.1:8300", "rig": "qk4", "ptt_ctrl": True}
-    expected_rig = {
-        "network": "tcp",
-        "address": f"127.0.0.1:{cfg['rigctld_port']}",
-        "VFO": "",
-    }
-    if (
-        any(pat_config.get("varahf", {}).get(k) != v for k, v in expected_vara.items())
-        or pat_config.get("hamlib_rigs", {}).get("qk4") != expected_rig
-        or pat_config.get("schedule")
-        or pat_config.get("listen") != ["varahf"]
-    ):
-        raise SystemExit(
-            "Pat configuration bypasses the supervised path or enables other listeners/jobs; inspect .local/pat/config.json"
-        )
+    selected = MODEMS[modem]
+    modem_process = selected["process"]
     LOCAL.mkdir(exist_ok=True, mode=0o700)
     (LOCAL / "logs").mkdir(exist_ok=True)
-    with (LOCAL / "station.lock").open("w") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise SystemExit("Station already running")
+    RESOURCE_LOCK.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # The radio/audio path is shared across JJ workspaces, even when their
+    # .local directories and configured control ports differ.
+    with (
+        RESOURCE_LOCK.open("a") as resource,
+        (LOCAL / "station.lock").open("a") as lock,
+    ):
+        for handle in (resource, lock):
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise SystemExit(
+                    "Station already running (possibly in another workspace)"
+                )
         for port in (
             cfg["cat_guard_port"],
             cfg["rigctld_port"],
             8300,
             8301,
+            8515,
+            8516,
             cfg["http_port"],
         ):
             if port_open(port):
                 raise SystemExit(
                     f"Port {port} is in use; refusing to start a second stack"
                 )
+        # Admission precedes configuration, audio checks and any radio access.
+        # In particular, never QSY an already running stack while switching.
+        pat_env = pat_environment()
+        verify_audio_devices()
+        if transmit:
+            print(
+                f"RF power readback: {native_power().decode()} (radio controlled)",
+                flush=True,
+            )
+        pat_config = json.loads(configure(modem=modem).read_text())
+        validate_pat_configuration(pat_config, cfg, modem)
         with socket.create_connection((cfg["qk4_host"], cfg["qk4_port"]), timeout=2):
             pass
         stop = LOCAL / "stop-request"
@@ -161,26 +170,26 @@ def run_stack(transmit=False, diagnostics=False):
                 )
             )
             snapshot.write_text(json.dumps(before, indent=2))
-            selected = select_data_a()
+            radio_selected = select_data_a()
             print(
-                f"QK4 DATA-A normal, RX {int(selected['BW']) * 10} Hz; previous state: {snapshot}",
+                f"QK4 DATA-A normal, RX {int(radio_selected['BW']) * 10} Hz; previous state: {snapshot}",
                 flush=True,
             )
             spawn(
-                "kestrel",
+                modem_process,
                 [
                     sys.executable,
-                    "tools/kestrel.py",
+                    f"tools/{modem_process}.py",
                     *flags,
                     *(["--diagnostics"] if diagnostics else []),
                 ],
-                8300,
-                "Kestrel ready",
+                selected["port"],
+                selected["ready"],
             )
             spawn(
                 "pat",
                 [
-                    *pat_args(log_name="pat"),
+                    *pat_args(log_name="pat", modem=modem),
                     "http",
                     "--addr",
                     f"127.0.0.1:{cfg['http_port']}",
@@ -194,13 +203,14 @@ def run_stack(transmit=False, diagnostics=False):
                         "pid": os.getpid(),
                         "transmit": transmit,
                         "diagnostics": diagnostics,
+                        "modem": modem,
                         "children": {n: p.pid for n, p in children},
                     },
                     indent=2,
                 )
             )
             print(
-                f"Station ready; transmit={transmit}; http://127.0.0.1:{cfg['http_port']}",
+                f"Station ready; modem={modem}; transmit={transmit}; http://127.0.0.1:{cfg['http_port']}",
                 flush=True,
             )
             while not stopping and not stop.exists():
@@ -214,7 +224,7 @@ def run_stack(transmit=False, diagnostics=False):
         finally:
             # Close the guarded CAT connection first: explicit RX and owner
             # disconnect unkey even if Pat or the audio process is stuck.
-            for name in ("cat-guard", "pat", "kestrel", "rigctld"):
+            for name in ("cat-guard", "pat", modem_process, "rigctld"):
                 for child_name, process in children:
                     if child_name == name and process.poll() is None:
                         process.terminate()
@@ -240,6 +250,12 @@ def main():
         help="Record Kestrel playback sources and detailed host timing",
     )
     parser.add_argument(
+        "--modem",
+        choices=MODEMS,
+        default="vara",
+        help="Station modem (default: vara); stop before switching",
+    )
+    parser.add_argument(
         "--receive-only",
         action="store_true",
         help="Block RF connections, keying and transmit audio",
@@ -247,6 +263,10 @@ def main():
     args, extra = parser.parse_known_args()
     if extra:
         parser.error(f"Unexpected arguments: {extra}")
+    if args.command == "start" and args.diagnostics and args.modem != "vara":
+        parser.error(
+            "--diagnostics records Kestrel only; use capture-handshake for passive ARDOP capture"
+        )
     os.umask(0o077)
     if args.command == "status":
         state = LOCAL / "station.json"
@@ -268,6 +288,8 @@ def main():
         flags = ["--receive-only"] if args.receive_only else []
         if args.diagnostics:
             flags.append("--diagnostics")
+        if args.modem != "vara":
+            flags += ["--modem", args.modem]
         with (LOCAL / "logs/supervisor.log").open("a") as log:
             offset = log.tell()
             process = subprocess.Popen(
@@ -310,7 +332,7 @@ def main():
         )
     else:
         options = {"diagnostics": True} if args.diagnostics else {}
-        run_stack(transmit=not args.receive_only, **options)
+        run_stack(transmit=not args.receive_only, modem=args.modem, **options)
 
 
 if __name__ == "__main__":

@@ -7,10 +7,73 @@ import unittest
 from unittest.mock import patch
 
 import pat_config
+from modems import MODEMS, validate_pat_configuration
+from station_config import config
 from station_config import ROOT
 
 
 class ProjectPatConfiguration(unittest.TestCase):
+    def test_modem_selection_is_exclusive_and_cli_preserves_running_mode(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            shutil.copytree(
+                ROOT / "config",
+                root / "config",
+                ignore=shutil.ignore_patterns("*.local.*"),
+            )
+            for name, selected in MODEMS.items():
+                with (
+                    self.subTest(modem=name),
+                    patch("pat_config.Path.home", return_value=root / "home"),
+                ):
+                    generated = json.loads(
+                        pat_config.configure(root, modem=name).read_text()
+                    )
+                    self.assertEqual(generated["listen"], [selected["transport"]])
+                    validate_pat_configuration(generated, config(root), name)
+                    other = "ardop" if name == "vara" else "varahf"
+                    self.assertNotIn(other, generated)
+                    if name == "ardop":
+                        self.assertEqual(generated["ardop"]["beacon_interval"], 0)
+                    (root / ".local/station.json").write_text(
+                        json.dumps({"modem": name})
+                    )
+                    self.assertEqual(
+                        json.loads(pat_config.configure(root).read_text()), generated
+                    )
+
+    def test_ardop_rejects_ptt_bypass_and_unsupervised_jobs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            shutil.copytree(
+                ROOT / "config",
+                root / "config",
+                ignore=shutil.ignore_patterns("*.local.*"),
+            )
+            generated = json.loads(
+                pat_config.configure(root, modem="ardop").read_text()
+            )
+            for field, value in (
+                ("ptt_ctrl", False),
+                ("rig", "other"),
+                ("addr", "elsewhere:8515"),
+                ("beacon_interval", 60),
+            ):
+                broken = generated | {"ardop": generated["ardop"] | {field: value}}
+                with (
+                    self.subTest(field=field),
+                    self.assertRaisesRegex(ValueError, "supervised"),
+                ):
+                    validate_pat_configuration(broken, config(root), "ardop")
+            for changes in (
+                {"listen": ["ardop", "varahf"]},
+                {"schedule": {"* * * * *": "connect"}},
+            ):
+                with self.assertRaisesRegex(ValueError, "supervised"):
+                    validate_pat_configuration(
+                        generated | changes, config(root), "ardop"
+                    )
+
     def test_fresh_station_needs_no_ignored_configuration(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

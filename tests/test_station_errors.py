@@ -33,7 +33,7 @@ class BackgroundStartupErrors(unittest.TestCase):
             "station.__file__ = __file__\n"
             # Both the launcher and detached supervisor run this stand-in.
             # No real stack, device, CAT connection or radio command can run.
-            "def fail(transmit=False):\n"
+            "def fail(transmit=False, modem='vara'):\n"
             "    assert not transmit, 'test requires receive-only mode'\n"
             + "\n".join(f"    {line}" for line in body.splitlines())
             + "\nstation.run_stack = fail\n"
@@ -170,6 +170,7 @@ class ChildStartupErrors(unittest.TestCase):
 
         with (
             patch("station.LOCAL", root),
+            patch("station.RESOURCE_LOCK", root / "resource.lock"),
             patch("station.pat_environment", return_value={}),
             patch("station.verify_audio_devices"),
             patch("station.configure", return_value=pat),

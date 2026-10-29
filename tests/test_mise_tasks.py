@@ -59,6 +59,11 @@ class MiseTaskArguments(unittest.TestCase):
             ("start", [], ["tools/station.py", "start", "--background"]),
             (
                 "start",
+                ["--modem", "ardop", "--receive-only"],
+                ["tools/station.py", "start", "--background"],
+            ),
+            (
+                "start",
                 ["--receive-only"],
                 ["tools/station.py", "start", "--background"],
             ),
@@ -165,6 +170,7 @@ class MiseTaskArguments(unittest.TestCase):
         for task, flag in (
             ("start", "--receive-only"),
             ("capture-handshake", "--execute"),
+            ("start", "--modem"),
             ("receive-check", "--dial-khz"),
             ("audio", "--direction"),
             ("configure-qk4", "--restore"),
@@ -181,6 +187,7 @@ class MiseTaskArguments(unittest.TestCase):
     def test_invalid_flags_and_choices_are_rejected_before_running_tools(self):
         for task, args in (
             ("start", ["--recieve-only"]),
+            ("start", ["--modem", "invalid"]),
             ("audio", ["record", "--direction", "invalid"]),
             ("calibrate-audio", ["--signal", "invalid"]),
             ("tx-test", ["--signal", "invalid"]),

@@ -4,5 +4,6 @@
   "listen": ["varahf"],
   "schedule": {},
   "varahf": {"addr": "127.0.0.1:8300", "bandwidth": 2300, "rig": "qk4", "ptt_ctrl": true},
+  "ardop": {"addr": "127.0.0.1:8515", "arq_bandwidth": {"Forced": false, "Max": 2000}, "rig": "qk4", "ptt_ctrl": true, "beacon_interval": 0, "cwid_enabled": true},
   "connect_aliases": {}
 }

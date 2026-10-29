@@ -85,4 +85,6 @@ class RenderedCapture(unittest.TestCase):
             contextlib.redirect_stdout(io.StringIO()),
         ):
             station.main()
-        run_stack.assert_called_once_with(transmit=False, diagnostics=True)
+        run_stack.assert_called_once_with(
+            transmit=False, modem="vara", diagnostics=True
+        )
