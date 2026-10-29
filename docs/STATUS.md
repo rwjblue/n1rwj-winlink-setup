@@ -4,7 +4,8 @@
 and normal unkeying are observed, but no RMS link or HF message transfer is
 claimed. Cross-band CAT tuning and delayed cancellation exposed gaps; stable
 tuning gates and independent RF-stack deadline shutdown are now implemented.
-The stack is stopped while these changes are verified.**
+The operator has taken over further connectivity testing; the stack is stopped.
+Project `.env` credentials are loaded, but authentication remains untested.**
 
 Test environment: Apple Silicon arm64 macOS; mise Python 3.14.4, Go 1.26.2,
 uv 0.11.7; Pat v1.0.0 at the pinned source revision; hfmodem/hfhost/creance
@@ -26,7 +27,7 @@ QK4 was reused rather than rebuilt or replaced.
 | RX cable conversion | 12->48 kHz chirp, gain 0.999333, residual SNR 63.0 dB, estimated latency 16.02 ms, no stream errors. QK4 was disconnected for the injected cable signal. | `mise run audio -- cable --direction rx` |
 | TX cable | 48 kHz chirp, gain 1.0, residual SNR >130 dB, estimated latency 16.0 ms, no stream errors. QK4 gate explicitly closed. | `mise run audio -- cable --direction tx` |
 | Pat/Hamlib PTT bench | Actual Pat and Hamlib produced TX/RX/TX/RX on a simulated K4. Key notification to CAT ~1.33 ms; unkey ~0.70 ms. Missing OFF forced unkey at the bench's 0.5 s deadline. No audio/radio opened. | `mise run bench-ptt` |
-| Interlocks/configuration | Twenty-eight local tests pass, including SIGTERM with a connected CAT client, transient tune rejection, split/RIT/XIT refusal, live-dial cancellation detection, fresh configuration, environment isolation and receive-only policy/deadman. | `mise run check` |
+| Interlocks/configuration | Thirty-two local tests pass, including credential loading without JSON persistence, identity checks, SIGTERM with a connected CAT client, transient tune rejection, live-dial cancellation detection and receive-only policy/deadman. | `mise run check` |
 | Modem regression | 37 upstream host lifecycle and BW2300 codec tests passed. Synthetic payload recovery is not independent RF evidence. | Commands below |
 | Failure shutdown | SIGKILL to the live receive-only Kestrel process caused all five station listener ports to close; normal restart reattached Pat. | Supervisor log; deliberate manual fault injection |
 
@@ -71,9 +72,10 @@ remain under the adjacent `backups` directory outside the repository.
    tests so far use a simulated transmitter.
 4. Measure radio/network turnaround and qualify PTT lead/tail against VARA
    response windows. Local cable latency is insufficient.
-5. After a radio link succeeds, configure Winlink credentials via keychain
-   and test message transfer plus destination receipt. The user explicitly
-   chose radio-link testing before supplying credentials.
+5. Winlink credentials are now supplied through the ignored root `.env`.
+   Loading is verified without printing the password or writing it to Pat JSON.
+   Authentication, message transfer and destination receipt remain untested;
+   the operator chose to continue connectivity testing manually.
 6. No CRC-valid VARA frame has yet been identified in this station's off-air
    audio. Live audio and offline codec tests remain separate evidence.
 
@@ -177,3 +179,28 @@ has been moved inside the server context, before waiting for closure. An actual
 child-process regression test proves SIGTERM sends RX and exits with the CAT
 client still connected. Live confirmation of the corrected shutdown timing
 remains pending. Receive recording: `rx-20261029T014034Z.wav` (66 seconds).
+
+## Operator handoff
+
+Further RF/gateway attempts were stopped at the operator's request. The
+receive-only station is not running. All station listeners are closed; QK4
+Vail remains the operator's running app.
+
+The corrected CAT shutdown passed the simulated-radio process regression and
+a receive-only live-stack stop, completing in 1.03 seconds including receive
+verification. A subsequent VE1YZ attempt stayed BUSY and generated no TX
+(all 669 sampled TQ frames were receive); the independent timer requested stop
+at 01:49:36.603 UTC and the stack completed cleanup at 01:49:38.203 UTC.
+Active-RF unkey timing after the final guard fix remains unverified.
+
+The operator supplied local Winlink credentials. Field names were normalized
+with a private backup outside the repo; the password value was preserved.
+The launcher reads `.env` without interpolation, validates the email callsign,
+and passes the password to Pat through its process environment. Actual local
+loading was verified without printing the password; the generated Pat JSON
+password remains blank. Authentication and mail transfer were not attempted.
+
+Vail-session logs, receive recordings and loose diagnostics were archived
+intact under `~/Library/Application Support/n1rwj-winlink-setup/archives/20261029T020717962501Z/.local`.
+References to Vail `.local` evidence above now refer to that archive. Mailbox,
+forms, RMS cache, generated configuration, `.env` and dependencies are retained.

@@ -28,6 +28,7 @@ def port_open(port):
 
 def run_stack(transmit=False):
     cfg = config()
+    pat_env = pat_environment()
     if transmit:
         print(f"RF power readback: {require_five_watt_limit():.1f} W", flush=True)
     pat_config = json.loads(configure().read_text())
@@ -97,7 +98,8 @@ def run_stack(transmit=False):
                 if stopping or stop.exists():
                     raise RuntimeError("Startup cancelled")
                 ready = (
-                    marker in path.read_bytes()[offset:].decode("utf-8", errors="replace")
+                    marker
+                    in path.read_bytes()[offset:].decode("utf-8", errors="replace")
                     if marker
                     else port_open(port)
                 )
@@ -150,7 +152,7 @@ def run_stack(transmit=False):
                     f"127.0.0.1:{cfg['http_port']}",
                 ],
                 cfg["http_port"],
-                env=pat_environment(),
+                env=pat_env,
             )
             state.write_text(
                 json.dumps(

@@ -2,6 +2,8 @@
 .local/
 .venv/
 .env
+.env.*
+!.env.example
 config/station.local.toml
 __pycache__/
 *.pyc

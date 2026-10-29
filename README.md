@@ -31,7 +31,7 @@ Follow [hardware and macOS setup](docs/SETUP.md) when configuring another Mac.
 
 ## Daily use
 
-1. Open QK4 and connect its saved local K4 profile. Close other modem/CAT clients.
+1. Open QK4 Vail and connect its saved local K4 profile. Close other modem/CAT clients.
 2. Run `mise run start`. This starts Kestrel, guarded CAT/Hamlib and Pat together,
    **receive-only**, in the background.
 3. Open [Pat's mailbox](http://127.0.0.1:8080/ui). Read mail or compose a message
@@ -61,6 +61,7 @@ Pat command keeps its usual home-directory behavior.
 | `config/station.toml` | Callsign, grid, audio devices, CAT/HTTP ports, modem drive and timing | Yes |
 | `config/pat.json` | Pat's VARA, listener, bandwidth and mail preferences | Yes; password blank |
 | `config/station.local.toml` | Optional overrides for another machine | No; not required here |
+| `.env` | Local Winlink email and password; see `.env.example` for names | No |
 | `.local/pat/config.json` | Generated effective Pat configuration | No; rebuilt automatically |
 | `.local/pat/mailbox`, `forms` | Your messages and downloaded forms | No; preserve these |
 | `.local/pat` | Pat's other private state and downloaded RMS caches | No |
@@ -80,10 +81,28 @@ RMS caches and form counters. CLI commands use `pat-cli.log` so they do not
 truncate the running server's `pat.log`. Other inherited `PAT_*` settings
 cannot change the configured identity or radio route; `PAT_DEBUG` is retained.
 
-Passwords are supplied only through `PAT_SECURE_LOGIN_PASSWORD` in the
-launching process, ideally loaded from macOS Keychain. They are never rendered
-into the generated config. Radio-link testing comes before credential setup
-and authenticated mail testing on this station.
+### Winlink login
+
+The project Pat launcher reads the root `.env` automatically. No `source .env`
+or manual export is needed. On a fresh checkout, create it using the field names
+in `.env.example`:
+
+```dotenv
+WINLINK_EMAIL=N1RWJ@winlink.org
+WINLINK_PASSWORD='your-password-here'
+```
+
+`WINLINK_EMAIL` supplies Pat's login callsign and must match the station
+callsign. `WINLINK_PASSWORD` is passed as `PAT_SECURE_LOGIN_PASSWORD` only to
+Pat's child process. It is not written into the generated JSON or command-line
+arguments. Quotes and literal dollar signs are supported; shell commands and
+`${...}` expansion are not evaluated. Keep `.env` private (`chmod 600 .env`).
+
+Explicit process `WINLINK_*` values override the file. An explicitly supplied
+`PAT_SECURE_LOGIN_PASSWORD` takes priority over both. Other `.env` fields do
+not change routing or tools. Restart the station after editing credentials.
+`mise run config` reports whether a password is available without printing it;
+this checks loading, not whether Winlink accepts the password.
 
 ## An approved RF session
 
@@ -93,7 +112,7 @@ requirement. Later operation requires the operator's authorization.
 
 Connect QK4, select USB with an appropriate filter, disable speech compression
 and TX EQ, and confirm the native QRP setting is at most 5 W. DSP settings and
-PTT timing still need radio-path qualification. Then:
+PTT timing still need radio-path qualification.
 
 Select the band in QK4 first. Keep both VFOs on that band for initial tests:
 when receivers share an antenna, the transmit band's low-pass filter can
@@ -103,7 +122,18 @@ band change can briefly appear in QK4's cached state before reverting.
 ```sh
 mise run stop
 mise run transmit -- --approved-transmit  # Keep this foreground terminal open
-# In another terminal, use a current RMS URL from the list:
+```
+
+For mail, open [Pat](http://127.0.0.1:8080/ui), compose your message, then use
+its Connect form with VARA HF, the RMS callsign, dial frequency in kHz and
+bandwidth from the current RMS list. The `.env` credentials are already loaded.
+Keep this terminal open during the exchange. To abort reliably, use Ctrl-C in
+the RF terminal or `mise run stop`: Pat's UI cancellation can leave a dial
+queued behind BUSY.
+
+For a bounded **radio-link-only** check in another terminal:
+
+```sh
 mise run link-test -- 'varahf:///KB8AY?bw=2750&freq=7100' --execute --approved-transmit
 ```
 
@@ -115,8 +145,8 @@ Successful HF connections are disconnected before stack shutdown. Original
 dial frequency is restored after receive readback. The RF terminal exits at
 test completion; restart it for another attempt.
 
-It tests the radio link before mail authentication. Without `--execute`, it
-only prints a plan. RMS URLs
+`link-test` disconnects once an HF link appears; use the UI flow above for an
+actual mail exchange. Without `--execute`, it only prints a plan. RMS URLs
 specify **dial kHz**; the audio centre is 1500 Hz higher. Ctrl-C in the RF
 terminal stops the complete stack. Receive audio is saved under
 `.local/recordings` during RF sessions.
@@ -133,6 +163,7 @@ Start with `mise run doctor`, `.local/logs/supervisor.log` and the child logs.
 For a callsign/config problem, run `mise run pat -- env`: it must report
 `N1RWJ`, `FN41fr` and paths inside this checkout. If bare `pat` still reports
 home paths, refresh mise's shell environment or use `mise run pat -- …`.
+To refresh a cached gateway list, add `--force-download` to the `rmslist` command.
 
 `mise run check` tests local configuration and interlocks without RF. Advanced
 audio, codec and simulated-PTT diagnostics are in [SETUP](docs/SETUP.md).

@@ -61,14 +61,17 @@ class ProjectPatConfiguration(unittest.TestCase):
             self.assertEqual(json.loads(backups[0].read_text()), stale)
 
     def test_home_environment_cannot_redirect_project_rig_or_identity(self):
-        with patch.dict(
-            os.environ,
-            {
-                "PAT_MYCALL": "WRONG",
-                "PAT_HAMLIB_RIGS_qk4_ADDRESS": "elsewhere:9299",
-                "PAT_SECURE_LOGIN_PASSWORD": "test-only-placeholder",
-                "XDG_DATA_HOME": "/elsewhere",
-            },
+        with (
+            patch("pat_config.credential_overrides", return_value={}),
+            patch.dict(
+                os.environ,
+                {
+                    "PAT_MYCALL": "WRONG",
+                    "PAT_HAMLIB_RIGS_qk4_ADDRESS": "elsewhere:9299",
+                    "PAT_SECURE_LOGIN_PASSWORD": "test-only-placeholder",
+                    "XDG_DATA_HOME": "/elsewhere",
+                },
+            ),
         ):
             env = pat_config.pat_environment()
             self.assertNotIn("PAT_MYCALL", env)
@@ -76,3 +79,63 @@ class ProjectPatConfiguration(unittest.TestCase):
             self.assertEqual(env["PAT_SECURE_LOGIN_PASSWORD"], "test-only-placeholder")
             self.assertEqual(env["XDG_DATA_HOME"], str(ROOT / ".local"))
             self.assertEqual(os.environ["XDG_DATA_HOME"], "/elsewhere")
+
+
+class WinlinkCredentials(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+        self.root = Path(self.folder.name)
+        shutil.copytree(
+            ROOT / "config",
+            self.root / "config",
+            ignore=shutil.ignore_patterns("*.local.*"),
+        )
+        self.patch_root = patch("pat_config.ROOT", self.root)
+        self.patch_root.start()
+        self.addCleanup(self.patch_root.stop)
+        self.patch_env = patch.dict(os.environ, {}, clear=True)
+        self.patch_env.start()
+        self.addCleanup(self.patch_env.stop)
+
+    def test_dotenv_credentials_reach_only_pat_environment_and_not_json(self):
+        password = "test p a$$#${literal}$(false)"
+        (self.root / ".env").write_text(
+            f"WINLINK_EMAIL=n1rwj@winlink.org\nWINLINK_PASSWORD='{password}'\n"
+        )
+        env = pat_config.pat_environment()
+        self.assertEqual(env["PAT_MYCALL"], "N1RWJ")
+        self.assertEqual(env["PAT_SECURE_LOGIN_PASSWORD"], password)
+        self.assertNotIn("WINLINK_PASSWORD", env)
+        self.assertNotIn("PAT_SECURE_LOGIN_PASSWORD", os.environ)
+        target = pat_config.configure(self.root)
+        self.assertEqual(json.loads(target.read_text())["secure_login_password"], "")
+        self.assertNotIn(password, target.read_text())
+
+    def test_no_dotenv_is_required_for_receive_only_configuration(self):
+        self.assertNotIn("PAT_SECURE_LOGIN_PASSWORD", pat_config.pat_environment())
+
+    def test_explicit_environment_credentials_override_dotenv(self):
+        (self.root / ".env").write_text(
+            "WINLINK_EMAIL=N1RWJ@winlink.org\nWINLINK_PASSWORD='file-value'\n"
+        )
+        with patch.dict(os.environ, {"WINLINK_PASSWORD": "environment-value"}):
+            self.assertEqual(
+                pat_config.pat_environment()["PAT_SECURE_LOGIN_PASSWORD"],
+                "environment-value",
+            )
+        with patch.dict(os.environ, {"PAT_SECURE_LOGIN_PASSWORD": "native-override"}):
+            self.assertEqual(
+                pat_config.pat_environment()["PAT_SECURE_LOGIN_PASSWORD"],
+                "native-override",
+            )
+
+    def test_login_identity_mismatch_fails_without_echoing_credentials(self):
+        (self.root / ".env").write_text(
+            "WINLINK_EMAIL=N0OTHER@winlink.org\nWINLINK_PASSWORD='test-only-secret'\n"
+        )
+        with self.assertRaises(ValueError) as raised:
+            pat_config.pat_environment()
+        self.assertIn("match callsign", str(raised.exception))
+        self.assertNotIn("N0OTHER", str(raised.exception))
+        self.assertNotIn("test-only-secret", str(raised.exception))

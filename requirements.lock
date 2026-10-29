@@ -11,6 +11,7 @@ pycparser==3.12
 pygments==2.21.0
 pyserial==3.5
 pytest==9.2.0
+python-dotenv==1.2.4
 ruff==0.17.3
 scipy==1.18.1
 sounddevice==0.5.6

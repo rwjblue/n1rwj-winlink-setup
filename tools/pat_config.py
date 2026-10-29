@@ -7,6 +7,8 @@ from pathlib import Path
 import shutil
 import subprocess
 
+from dotenv import dotenv_values
+
 from station_config import ROOT, config
 
 
@@ -16,7 +18,7 @@ def configure(root=None):
     template = json.loads((root / "config/pat.json").read_text())
     if template.get("secure_login_password"):
         raise ValueError(
-            "Keep passwords out of config/pat.json; use PAT_SECURE_LOGIN_PASSWORD"
+            "Keep passwords out of config/pat.json; use WINLINK_PASSWORD in .env"
         )
     template.update(
         mycall=cfg["callsign"],
@@ -81,15 +83,43 @@ def pat_args(log_name="pat-cli"):
     ]
 
 
+def credential_overrides():
+    # Explicit path, no upward search or shell/variable interpolation. Password
+    # characters such as $ and ${...} must reach Pat unchanged.
+    values = dotenv_values(ROOT / ".env", interpolate=False)
+    email = os.environ.get("WINLINK_EMAIL", values.get("WINLINK_EMAIL"))
+    password = os.environ.get("WINLINK_PASSWORD", values.get("WINLINK_PASSWORD"))
+    overrides = {}
+    if email:
+        login_call, separator, domain = email.strip().partition("@")
+        station_call = config(ROOT)["callsign"].upper()
+        if (
+            not separator
+            or domain.lower() != "winlink.org"
+            or login_call.upper() != station_call
+        ):
+            raise ValueError(
+                "WINLINK_EMAIL must be CALLSIGN@winlink.org and match callsign in config/station.toml"
+            )
+        overrides["PAT_MYCALL"] = station_call
+    if "PAT_SECURE_LOGIN_PASSWORD" not in os.environ and password is not None:
+        overrides["PAT_SECURE_LOGIN_PASSWORD"] = password
+    return overrides
+
+
 def pat_environment():
     # Scope XDG to Pat's child process; its RMS caches and form counters also
     # belong here. Do not redirect other programs' settings or read home hooks.
     env = {
         key: value
         for key, value in os.environ.items()
-        if not key.startswith("PAT_")
-        or key in {"PAT_SECURE_LOGIN_PASSWORD", "PAT_DEBUG"}
+        if key not in {"WINLINK_EMAIL", "WINLINK_PASSWORD"}
+        and (
+            not key.startswith("PAT_")
+            or key in {"PAT_SECURE_LOGIN_PASSWORD", "PAT_DEBUG"}
+        )
     }
+    env.update(credential_overrides())
     for kind in ("CONFIG", "DATA", "STATE"):
         env[f"XDG_{kind}_HOME"] = str(ROOT / ".local")
     env["XDG_CACHE_HOME"] = str(ROOT / ".cache")
@@ -103,4 +133,9 @@ if __name__ == "__main__":
     print(f"Station: {cfg['callsign']} / {cfg['locator']}")
     print(f"Settings: {ROOT / 'config/station.toml'} and {ROOT / 'config/pat.json'}")
     print(f"Generated Pat config: {target}")
-    print("Password: supplied only through PAT_SECURE_LOGIN_PASSWORD")
+    print(
+        f"Winlink password available to Pat: {bool(pat_environment().get('PAT_SECURE_LOGIN_PASSWORD'))}"
+    )
+    print(
+        "Credentials: project .env or explicit environment; never written into Pat JSON"
+    )
