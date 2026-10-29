@@ -40,9 +40,24 @@ def test_waveform(callsign, kind, peak):
         from hfmodem.kestrel.vara import vara_frames, vara_mfsk
 
         samples = vara_mfsk.synth_burst("N0CALL", vara_frames.connect_request("2300"))
+    elif kind == "ardop-connect":
+        from hfmodem.besra.arq.session import CONREQ_MAX
+        from hfmodem.besra.frame.callsign import pack_callsign
+        from hfmodem.besra.phy.demodulator import SAMPLE_RATE
+        from hfmodem.besra.phy.modulator import render_frame
+        from hfmodem.besra.radio import to_card
+
+        samples = to_card(
+            render_frame(
+                CONREQ_MAX[2000],
+                payload=pack_callsign(callsign) + pack_callsign("N0CALL"),
+                session_id=0xFF,
+            ),
+            SAMPLE_RATE,
+        )
     else:
         samples = cwid.audio(callsign, wpm=20, tone_hz=1500, fs=48000)
-    # Match AudioVaraIO.tx(): normalize each rendered burst to its configured peak.
+    # Match the station sinks: normalize after conversion to the 48 kHz cable.
     return levels.at_drive(samples, peak)
 
 
@@ -77,7 +92,9 @@ def main():
         help="Off-air: requires the K4 TX TEST indicator, verified through QK4 Vail",
     )
     parser.add_argument("--dial-khz", type=float, default=14101.5)
-    parser.add_argument("--signal", choices=("cw", "vara-connect"), default="cw")
+    parser.add_argument(
+        "--signal", choices=("cw", "vara-connect", "ardop-connect"), default="cw"
+    )
     parser.add_argument(
         "--audio-peak",
         type=float,
@@ -89,7 +106,7 @@ def main():
     )
     args = parser.parse_args()
     if args.signal != "cw" and not args.radio_test_mode:
-        parser.error("The VARA calibration waveform requires --radio-test-mode")
+        parser.error("Modem calibration waveforms require --radio-test-mode")
     if args.audio_peak is not None and (
         not args.radio_test_mode or not 0 < args.audio_peak <= 1
     ):
@@ -113,6 +130,8 @@ def main():
         "tone_hz": 1500,
         "signal": f"CW {cfg['callsign']} at 20 WPM"
         if args.signal == "cw"
+        else "Besra 2000MAX connect request to N0CALL (off-air)"
+        if args.signal == "ardop-connect"
         else "Kestrel BW2300 connect request to N0CALL (off-air)",
         "signal_seconds": len(samples) / 48000,
         "audio_peak": peak,

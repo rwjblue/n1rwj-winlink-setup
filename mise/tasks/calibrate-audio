@@ -3,7 +3,7 @@
 #USAGE flag "--execute" help="Measure in confirmed K4 TX TEST (default: print a plan)"
 #USAGE flag "--dial-khz <khz>" help="Calibration dial frequency in kHz (default: current radio dial)"
 #USAGE flag "--signal <signal>" default="vara-connect" help="Calibration waveform" {
-#USAGE   choices "cw" "vara-connect"
+#USAGE   choices "cw" "vara-connect" "ardop-connect"
 #USAGE }
 #USAGE flag "--peaks <peaks>..." help="Ascending peak drives above 0 up to 1 (default: standard sweep)"
 set -euo pipefail

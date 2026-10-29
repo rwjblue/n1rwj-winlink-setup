@@ -57,6 +57,22 @@ class MiseTaskArguments(unittest.TestCase):
     def test_arguments_reach_station_tools_without_a_separator(self):
         cases = [
             ("start", [], ["tools/station.py", "start", "--background"]),
+            ("bench-ptt", ["--modem", "ardop"], ["tools/bench_ptt.py"]),
+            (
+                "link-test",
+                ["ardop:///N0TEST?bw=2000MAX&freq=7100"],
+                ["tools/link_test.py"],
+            ),
+            (
+                "tx-test",
+                ["--signal", "ardop-connect", "--radio-test-mode"],
+                ["tools/tx_test.py"],
+            ),
+            (
+                "calibrate-audio",
+                ["--signal", "ardop-connect"],
+                ["tools/calibrate_audio.py"],
+            ),
             (
                 "start",
                 ["--modem", "ardop", "--receive-only"],
@@ -171,6 +187,7 @@ class MiseTaskArguments(unittest.TestCase):
             ("start", "--receive-only"),
             ("capture-handshake", "--execute"),
             ("start", "--modem"),
+            ("bench-ptt", "--modem"),
             ("receive-check", "--dial-khz"),
             ("audio", "--direction"),
             ("configure-qk4", "--restore"),
@@ -188,6 +205,7 @@ class MiseTaskArguments(unittest.TestCase):
         for task, args in (
             ("start", ["--recieve-only"]),
             ("start", ["--modem", "invalid"]),
+            ("bench-ptt", ["--modem", "invalid"]),
             ("audio", ["record", "--direction", "invalid"]),
             ("calibrate-audio", ["--signal", "invalid"]),
             ("tx-test", ["--signal", "invalid"]),

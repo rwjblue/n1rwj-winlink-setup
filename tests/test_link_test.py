@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 import itertools
 import unittest
 import tempfile
@@ -10,6 +11,52 @@ import link_test
 
 
 class LinkTestPlanning(unittest.TestCase):
+    def test_ardop_plan_and_modem_mismatch_never_contact_station(self):
+        url = "ardop:///N0TEST?bw=2000MAX&freq=7100"
+        with tempfile.TemporaryDirectory() as folder:
+            local = Path(folder)
+            (local / "station.json").write_text(
+                json.dumps({"modem": "vara", "transmit": True})
+            )
+            for flags in ([], ["--execute", "--approved-transmit"]):
+                with (
+                    self.subTest(flags=flags),
+                    patch("sys.argv", ["link_test", url, *flags]),
+                    patch("link_test.LOCAL", local),
+                    patch("link_test.api") as api,
+                    patch("link_test.operating_state") as radio,
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
+                    if flags:
+                        with self.assertRaisesRegex(SystemExit, "does not match"):
+                            link_test.main()
+                    else:
+                        link_test.main()
+                api.assert_not_called()
+                radio.assert_not_called()
+
+    def test_ardop_qsy_uses_selected_transport(self):
+        with tempfile.TemporaryDirectory() as folder:
+            local = Path(folder)
+            (local / "logs").mkdir()
+            with (
+                patch("link_test.LOCAL", local),
+                patch(
+                    "link_test.operating_state",
+                    return_value={"TQ": "0", "FA": "7100000"},
+                ),
+                patch("link_test.select_data_a"),
+                patch("link_test.require_frequency"),
+                patch("link_test.restore_frequency"),
+                patch("link_test.api") as api,
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                with link_test.tuned_frequency(7100, transport="ardop"):
+                    pass
+            self.assertEqual(
+                json.loads(api.call_args.args[1]), {"transport": "ardop", "freq": 7100}
+            )
+
     def test_brief_optimistic_frequency_match_is_not_a_settled_tune(self):
         good = {
             "FA": "00007100000",

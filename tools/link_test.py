@@ -1,4 +1,4 @@
-"""Bound one approved Pat VARA radio-link attempt and always cancel on timeout."""
+"""Bound one approved Pat HF radio-link attempt and always cancel on timeout."""
 
 import argparse
 import contextlib
@@ -22,6 +22,7 @@ from qk4_cat import (
 )
 from station import LOCAL
 from station_config import config
+from modems import MODEMS
 
 
 def api(path, data=None, timeout=3):
@@ -61,7 +62,7 @@ def require_frequency(hz, settle_seconds=0, stable_seconds=0):
 
 
 @contextlib.contextmanager
-def tuned_frequency(khz):
+def tuned_frequency(khz, transport="varahf"):
     previous = operating_state()
     if previous["TQ"] != "0":
         raise UserError("Radio already transmitting; preflight refused")
@@ -70,7 +71,11 @@ def tuned_frequency(khz):
     )
     hz = round(khz * 1000)
     try:
-        api("qsy", json.dumps({"transport": "varahf", "freq": khz}).encode(), timeout=35)
+        api(
+            "qsy",
+            json.dumps({"transport": transport, "freq": khz}).encode(),
+            timeout=35,
+        )
         select_data_a()  # A band change can recall a different mode/filter.
         require_frequency(hz, settle_seconds=5, stable_seconds=1)
         print(
@@ -131,7 +136,9 @@ def stop_rf_stack():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("url", help="VARA URL from the current Pat RMS list")
+    parser.add_argument(
+        "url", help="VARA HF or ARDOP URL from the current Pat RMS list"
+    )
     parser.add_argument("--seconds", type=float, default=45)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--approved-transmit", action="store_true")
@@ -139,8 +146,8 @@ def main():
     url = urllib.parse.urlparse(args.url)
     params = urllib.parse.parse_qs(url.query)
     frequency = float(params.get("freq", ["0"])[0])
-    if url.scheme != "varahf" or not url.path.strip("/"):
-        parser.error("Use a varahf URL containing the RMS callsign")
+    if url.scheme not in ("varahf", "ardop") or not url.path.strip("/"):
+        parser.error("Use a varahf or ardop URL containing the RMS callsign")
     if not (7000 <= frequency <= 7300 or 14000 <= frequency <= 14350):
         parser.error("Use a listed 40m or 20m dial frequency in kHz")
     if not 5 <= args.seconds <= 120:
@@ -158,6 +165,10 @@ def main():
     if not args.approved_transmit:
         parser.error("RF execution requires the operator-approved transmit flag")
     state = json.loads((LOCAL / "station.json").read_text())
+    if MODEMS[state.get("modem", "vara")]["transport"] != url.scheme:
+        raise SystemExit(
+            "URL modem does not match the active station; stop and start with --modem first"
+        )
     if not state.get("transmit"):
         raise SystemExit("Use mise run stop, then mise run start to enable RF first")
     initial = api("status")
@@ -172,7 +183,7 @@ def main():
         except (OSError, urllib.error.HTTPError, ValueError) as error:
             outcome["connect_result"] = str(error)
 
-    with tuned_frequency(frequency) as hz:
+    with tuned_frequency(frequency, transport=url.scheme) as hz:
         # Report the selected band's setting without imposing a power policy.
         outcome["power_readback"] = native_power().decode()
         print(

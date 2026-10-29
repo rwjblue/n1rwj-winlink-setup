@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-#MISE description="Plan or explicitly execute one bounded VARA RMS link test"
-#USAGE arg "<url>" help="VARA URL from the current Pat RMS list, with dial frequency in kHz"
+#MISE description="Plan or explicitly execute one bounded HF RMS link test"
+#USAGE arg "<url>" help="VARA HF or ARDOP URL from Pat's RMS list, with dial frequency in kHz"
 #USAGE flag "--seconds <seconds>" default="45" help="Attempt deadline in seconds (5 to 120)"
 #USAGE flag "--execute" help="Run the link test (default: print a plan)"
 #USAGE flag "--approved-transmit" help="Confirm operator approval for this RF test"

@@ -1,6 +1,7 @@
 """Exercise real Pat and Hamlib against a simulated K4; no radio or audio IO."""
 
 import asyncio
+import argparse
 import datetime
 import json
 import os
@@ -14,6 +15,8 @@ import urllib.request
 import urllib.parse
 
 from hfmodem.kestrel.host.server import VaraServer
+from hfmodem.besra.host.server import HostServer
+from ardop import StationModem
 
 from cat_guard import Guard
 from build_pat import ensure_pat
@@ -28,7 +31,8 @@ async def wait_until(predicate, timeout=15):
         await asyncio.sleep(0.02)
 
 
-async def main():
+async def main(modem_name="vara"):
+    transport = "ardop" if modem_name == "ardop" else "varahf"
     binary = await asyncio.to_thread(ensure_pat)
     events = []
     keyed = False
@@ -102,12 +106,24 @@ async def main():
             writer.close()
 
     processes = []
-    modem = VaraServer(host="127.0.0.1", cmd_port=18300, data_port=18301)
+    modem = (
+        HostServer(
+            StationModem(transmit=True, threaded=True),
+            control_port=18300,
+            data_port=18301,
+            quiet=True,
+        )
+        if modem_name == "ardop"
+        else VaraServer(host="127.0.0.1", cmd_port=18300, data_port=18301)
+    )
     radio_server = await asyncio.start_server(radio, "127.0.0.1", 19299)
     guard = Guard("127.0.0.1", 19299, transmit=True, max_key=0.5)
     guard_server = await asyncio.start_server(guard.session, "127.0.0.1", 19300)
     try:
-        modem.start_background()
+        if modem_name == "ardop":
+            modem.start()
+        else:
+            modem.start_background()
         with tempfile.TemporaryDirectory(prefix="winlink-bench-") as folder:
             folder = Path(folder)
             (folder / "config").mkdir()
@@ -128,19 +144,26 @@ async def main():
             )
             cfg = {
                 "mycall": "N1RWJ",
-                "listen": ["varahf"],
+                "locator": "FN41fr",
+                "listen": [transport],
                 "schedule": {},
                 "version_reporting_disabled": True,
                 "hamlib_rigs": {
                     "bench": {"network": "tcp", "address": "127.0.0.1:14532", "VFO": ""}
                 },
-                "varahf": {
+                transport: {
                     "addr": "127.0.0.1:18300",
                     "bandwidth": 2300,
                     "rig": "bench",
                     "ptt_ctrl": True,
                 },
             }
+            if modem_name == "ardop":
+                cfg[transport].update(
+                    arq_bandwidth={"Forced": False, "Max": 2000},
+                    beacon_interval=0,
+                    cwid_enabled=True,
+                )
             (folder / "config.json").write_text(json.dumps(cfg))
             with (folder / "rigctld.log").open("w") as log:
                 rig = await asyncio.create_subprocess_exec(
@@ -211,16 +234,23 @@ async def main():
                         },
                     )
                     processes.append(pat)
-                    await wait_until(
-                        lambda: modem._session and modem._session.listening
-                    )
+                    try:
+                        await wait_until(
+                            (lambda: modem.modem._listen)
+                            if modem_name == "ardop"
+                            else (lambda: modem._session and modem._session.listening)
+                        )
+                    except TimeoutError:
+                        raise RuntimeError(
+                            "Pat listener failed: " + (folder / "pat.log").read_text()
+                        ) from None
                     await asyncio.sleep(0.3)
 
                     def qsy(hz):
                         request = urllib.request.Request(
                             "http://127.0.0.1:18080/api/qsy",
                             data=json.dumps(
-                                {"transport": "varahf", "freq": hz / 1000}
+                                {"transport": transport, "freq": hz / 1000}
                             ).encode(),
                             headers={"Content-Type": "application/json"},
                         )
@@ -252,7 +282,8 @@ async def main():
                     assert not events, "Failed QSY must not key"
 
                     def connect(frequency):
-                        url = "varahf:///N0TEST?bw=2300" + frequency
+                        bw = "2000MAX" if modem_name == "ardop" else "2300"
+                        url = f"{transport}:///N0TEST?bw={bw}" + frequency
                         with urllib.request.urlopen(
                             "http://127.0.0.1:18080/api/connect?"
                             + urllib.parse.urlencode({"url": url}),
@@ -275,15 +306,39 @@ async def main():
                     refuse_mode = False
                     await asyncio.to_thread(qsy, 14101500)
 
+                    if modem_name == "ardop":
+                        # Same Pat process and attached TCP host, but independently
+                        # disarm the core. LISTEN may stay attached for monitoring.
+                        modem.modem.transmit_enabled = False
+                        modem.modem.set_listen(True)
+                        assert not modem.modem._listen
+                        try:
+                            await asyncio.to_thread(connect, "")
+                        except urllib.error.HTTPError as error:
+                            assert error.code == 500, error.code
+                        else:
+                            raise AssertionError(
+                                "Pat accepted a receive-only ARDOP dial"
+                            )
+                        assert not events, "Receive-only ARDOP connect must not key"
+                        assert modem.modem.queued == 0 and not modem.modem.connected
+                        modem.modem.transmit_enabled = True
+
+                    notify_ptt = (
+                        modem.modem_ptt
+                        if modem_name == "ardop"
+                        else modem._session.modem_ptt
+                    )
+
                     start = time.monotonic()
-                    modem._session.modem_ptt(True)
+                    notify_ptt(True)
                     await wait_until(lambda: keyed, 2)
                     key_delay = events[-1][1] - start
                     start = time.monotonic()
-                    modem._session.modem_ptt(False)
+                    notify_ptt(False)
                     await wait_until(lambda: not keyed, 2)
                     unkey_delay = events[-1][1] - start
-                    modem._session.modem_ptt(True)
+                    notify_ptt(True)
                     await wait_until(lambda: keyed, 2)
                     # Stop delivering OFF. The guard must terminate an overlong
                     # key even while Pat and rigctld remain alive.
@@ -302,6 +357,10 @@ async def main():
                                 "failed_mode_qsy": "HTTP 500; no keying",
                                 "failed_mode_connect": "with and without freq: HTTP 500 before modem dial",
                                 "radio": "simulated; no RF or audio devices opened",
+                                "modem": modem_name,
+                                "receive_only_connect": "refused without keying"
+                                if modem_name == "ardop"
+                                else "covered by unit tests",
                             },
                             indent=2,
                         )
@@ -331,4 +390,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--modem", choices=("vara", "ardop"), default="vara")
+    asyncio.run(main(parser.parse_args().modem))

@@ -34,7 +34,9 @@ def main():
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--dial-khz", type=float, help="Default: current radio dial")
     parser.add_argument(
-        "--signal", choices=("cw", "vara-connect"), default="vara-connect"
+        "--signal",
+        choices=("cw", "vara-connect", "ardop-connect"),
+        default="vara-connect",
     )
     parser.add_argument(
         "--peaks",
